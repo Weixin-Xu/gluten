@@ -21,6 +21,7 @@ class GlutenConan(ConanFile):
         "build_benchmarks": [True, False],
         "build_tests": [True, False],
         "build_examples": [True, False],
+        "use_internal": [True, False],
     }
     default_options = {
         "shared" : False,
@@ -32,6 +33,7 @@ class GlutenConan(ConanFile):
         "build_benchmarks": False,
         "build_tests": False,
         "build_examples": False,
+        "use_internal": True,
     }
 
     build_policy = "missing"
@@ -66,9 +68,14 @@ class GlutenConan(ConanFile):
         if hasattr(self, "user") and hasattr(self, "channel"):
             if self.user is not None and self.channel is not None: 
                 user_channel=f"@{self.user}/{self.channel}"
-        bolt_version = os.getenv("BOLT_BUILD_VERSION", self.version)
-        self.requires(f"bolt/{bolt_version}{user_channel}", transitive_headers=True, transitive_libs=True)
         
+        if self.options.use_internal:
+            bolt_internal_version = os.getenv("BOLT_INTERNAL_BUILD_VERSION", self.version)
+            self.requires(f"bolt-internal/master@bytedance/testing", transitive_headers=True, transitive_libs=True)
+        else:
+            bolt_version = os.getenv("BOLT_BUILD_VERSION", self.version)
+            self.requires(f"bolt/{bolt_version}{user_channel}", transitive_headers=True, transitive_libs=True)
+
         protobuf_version = os.getenv("PROTOBUF_VERSION", "3.21.4")
         self.requires(f"protobuf/{protobuf_version}")
         if self.options.build_benchmarks or self.options.build_tests:
@@ -92,17 +99,22 @@ class GlutenConan(ConanFile):
     def configure(self):
         postfix="/*"
         bolt = f"bolt{postfix}"
-        self.options[bolt].spark_compatible = True
-        self.options[bolt].enable_hdfs = self.options.enable_hdfs
-        self.options[bolt].enable_s3 = self.options.enable_s3
+        bolt_internal = f"bolt-internal{postfix}"
+        if self.options.use_internal:
+            if self.options.enable_hdfs:
+                self.options[bolt_internal].enable_hdfs = True
+        else:
+            self.options[bolt_internal].spark_compatible = True
+            if self.options.enable_hdfs:
+                self.options[bolt].enable_hdfs = True
+            self.options[bolt].enable_s3 = self.options.enable_s3
+            self.options[bolt].enable_asan = self.options.enable_asan
 
-        self.options[bolt].enable_asan = self.options.enable_asan
-
-        if self.options.build_examples \
-            or self.options.build_tests \
-            or self.options.build_benchmarks:
-            self.options[bolt].enable_test = True
-            self.options[bolt].enable_testutil = True
+            if self.options.build_examples \
+                or self.options.build_tests \
+                or self.options.build_benchmarks:
+                self.options[bolt].enable_test = True
+                self.options[bolt].enable_testutil = True
         
 
     def generate(self):
@@ -180,9 +192,11 @@ class GlutenConan(ConanFile):
         
         self.cpp_info.components["libgluten"].libs = ["gluten"]
         self.cpp_info.components["libgluten"].requires.append("bolt::bolt")
+        self.cpp_info.components["libgluten"].requires.append("bolt-internal::bolt-internal")
 
         self.cpp_info.components["bolt_backend"].libs = ["bolt_backend"]
         self.cpp_info.components["bolt_backend"].requires.append("libgluten")
         self.cpp_info.components["bolt_backend"].requires.append("bolt::bolt")
+        self.cpp_info.components["bolt_backend"].requires.append("bolt-internal::bolt-internal")
 
-        self.cpp_info.requires.extend(["glog::glog", "bolt::bolt"])
+        self.cpp_info.requires.extend(["glog::glog", "bolt::bolt", "bolt-internal::bolt-internal"])

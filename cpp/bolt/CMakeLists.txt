@@ -251,6 +251,7 @@ endif()
 
 
 find_package(bolt CONFIG REQUIRED)
+find_package(bolt-internal CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(libbacktrace REQUIRED CONFIG)
 
@@ -268,8 +269,9 @@ find_package(libbacktrace REQUIRED CONFIG)
 #   target_link_libraries(${PROJECT_NAME} PUBLIC jemalloc::jemalloc)
 # endif()
 
-target_link_libraries(${PROJECT_NAME} PUBLIC gluten bolt::bolt xxHash::xxhash gfx::timsort libbacktrace::libbacktrace folly::folly gflags::gflags)
+target_link_libraries(${PROJECT_NAME} PUBLIC gluten bolt::bolt bolt-internal::bolt-internal xxHash::xxhash gfx::timsort libbacktrace::libbacktrace folly::folly gflags::gflags)
 target_include_directories(${PROJECT_NAME} PUBLIC gfx::timsort)
+target_include_directories(${PROJECT_NAME} PRIVATE bolt-internal::bolt-internal)
 
 execute_process(
     COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/bolt-build-info.sh ${bolt_INCLUDE_DIRS}
@@ -278,7 +280,8 @@ execute_process(
 message(STATUS "Bolt Build Info:\n${bolt_build_info}")
 
 if (BUILD_STATIC)
-  target_link_libraries(${PROJECT_NAME}_static PUBLIC gluten bolt::bolt xxHash::xxhash gfx::timsort libbacktrace::libbacktrace folly::folly gflags::gflags)
+  target_link_libraries(${PROJECT_NAME}_static PUBLIC gluten bolt::bolt bolt-internal::bolt-internal xxHash::xxhash gfx::timsort libbacktrace::libbacktrace folly::folly gflags::gflags)
+  target_include_directories(${PROJECT_NAME}_static PRIVATE bolt-internal::bolt-internal)
 
   #if(ENABLE_JEMALLOC_STATS)
   #  target_link_libraries(${PROJECT_NAME}_static PUBLIC jemalloc::jemalloc)
