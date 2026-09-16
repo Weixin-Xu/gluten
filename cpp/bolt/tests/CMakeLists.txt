@@ -45,11 +45,8 @@ function(add_bolt_test TEST_EXEC)
   gtest_discover_tests(${TEST_EXEC} DISCOVERY_MODE PRE_TEST)
 endfunction()
 
-# codegen linker flags, -export-dynamic for rtti. Keep the statically linked
-# gflags private to the executable: exporting it would make libgluten.so's own
-# glog register its flags into this registry a second time.
-add_link_options("-Wl,-export-dynamic"
-                 "-Wl,--exclude-libs,libgflags_nothreads.a")
+# codegen linker flags, -export-dynamic for rtti
+add_link_options("-Wl,-export-dynamic")
 
 set(BOLT_TEST_COMMON_SRCS JsonToProtoConverter.cc FilePathGenerator.cc)
 
@@ -66,8 +63,26 @@ add_bolt_test(
   SubstraitExtensionCollectorTest.cc
   BoltSubstraitRoundTripTest.cc
   BoltSubstraitSignatureTest.cc
+  PaimonPlanUtilsTest.cc
+  PaimonWholeStageTest.cc
   BoltToSubstraitTypeTest.cc)
-add_bolt_test(spark_functions_test SOURCES SparkFunctionTest.cc FunctionTest.cc)
+
+add_executable(paimon_split_compatibility_test PaimonSplitCompatibilityTest.cc)
+target_include_directories(
+  paimon_split_compatibility_test
+  PRIVATE ${paimon-cpp_PACKAGE_FOLDER_RELEASE}/include)
+target_link_libraries(
+  paimon_split_compatibility_test
+  Paimon::core
+  GTest::gtest
+  GTest::gtest_main)
+gtest_discover_tests(
+  paimon_split_compatibility_test
+  DISCOVERY_MODE PRE_TEST
+  TEST_PREFIX "focused.")
+
+add_bolt_test(spark_functions_test SOURCES SparkFunctionTest.cc
+               FunctionTest.cc)
 add_bolt_test(runtime_test SOURCES RuntimeTest.cc)
 add_bolt_test(bolt_memory_test SOURCES MemoryManagerTest.cc)
 add_bolt_test(buffer_outputstream_test SOURCES BufferOutputStreamTest.cc)

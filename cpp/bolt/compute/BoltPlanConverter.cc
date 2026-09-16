@@ -131,6 +131,9 @@ std::shared_ptr<SplitInfo> parseScanSplitInfo(
       splitInfo->tableSchema = ROW(std::move(names), std::move(types));
     }
   }
+  if (const auto paimonSplitInfo = std::dynamic_pointer_cast<paimon::PaimonSplitInfo>(splitInfo)) {
+    paimon::PaimonPlanUtils::validate(*paimonSplitInfo, fileList.size());
+  }
   return splitInfo;
 }
 

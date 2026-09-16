@@ -40,11 +40,20 @@
 #include "bolt/common/file/FileSystems.h"
 #include "bolt/connectors/hive/HiveConnector.h"
 #include "bolt/connectors/hive/HiveDataSource.h"
+#include "bolt/connectors/paimon/PaimonConnector.h"
+#ifdef ENABLE_ABFS
 #include "bolt/connectors/hive/storage_adapters/abfs/RegisterAbfsFileSystem.h" // @manual
+#endif
+#ifdef ENABLE_GCS
 #include "bolt/connectors/hive/storage_adapters/gcs/RegisterGcsFileSystem.h" // @manual
+#endif
+#ifdef ENABLE_HDFS
 #include "bolt/connectors/hive/storage_adapters/hdfs/HdfsFileSystem.h"
 #include "bolt/connectors/hive/storage_adapters/hdfs/RegisterHdfsFileSystem.h" // @manual
+#endif
+#ifdef ENABLE_S3
 #include "bolt/connectors/hive/storage_adapters/s3fs/RegisterS3FileSystem.h" // @manual
+#endif
 #include "bolt/dwio/orc/reader/OrcReader.h"
 #include "bolt/dwio/parquet/RegisterParquetReader.h"
 #include "bolt/dwio/parquet/RegisterParquetWriter.h"
@@ -446,6 +455,10 @@ void BoltBackend::initConnector(const std::shared_ptr<bolt::config::ConfigBase>&
   }
   bolt::connector::registerConnector(
       std::make_shared<bolt::connector::hive::HiveConnector>(kHiveConnectorId, mutableConf, ioExecutor_.get()));
+  // Register the native Paimon connector for serialized-split path.
+  const auto paimonConnectorFactory = std::make_shared<bolt::connector::paimon::PaimonConnectorFactory>();
+  bolt::connector::registerConnector(
+      paimonConnectorFactory->newConnector(kPaimonConnectorId, mutableConf, ioExecutor_.get()));
 #ifdef GLUTEN_ENABLE_GPU
   if (backendConf_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
       backendConf_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {

@@ -23,6 +23,8 @@
 
 namespace gluten::paimon {
 
+enum class PaimonSplitMode { kUnset, kLegacy, kSerialized };
+
 struct PaimonSplitInfo : SplitInfo {
   struct FileMeta {
     dwio::common::FileFormat format;
@@ -35,6 +37,10 @@ struct PaimonSplitInfo : SplitInfo {
     bool rawConvertible;
   };
 
+  PaimonSplitMode mode{PaimonSplitMode::kUnset};
+  std::vector<std::string> serializedSplits;
+
+  // Legacy Paimon metadata used by the Hive-compatible reader path.
   std::unordered_map<std::string, FileMeta> metaByPath_;
 
   explicit PaimonSplitInfo(const SplitInfo& splitInfo) : SplitInfo(splitInfo) {}
@@ -71,8 +77,10 @@ struct PaimonSplitInfo : SplitInfo {
 class PaimonPlanUtils {
  public:
   static std::shared_ptr<PaimonSplitInfo> parsePaimonSplitInfo(
-      substrait::ReadRel_LocalFiles_FileOrFiles file,
+      const substrait::ReadRel_LocalFiles_FileOrFiles& file,
       std::shared_ptr<SplitInfo> splitInfo);
+
+  static void validate(const PaimonSplitInfo& splitInfo, size_t fileCount);
 };
 
 } // namespace gluten::paimon

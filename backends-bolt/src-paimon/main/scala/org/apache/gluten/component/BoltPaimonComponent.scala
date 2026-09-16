@@ -18,7 +18,7 @@ package org.apache.gluten.component
 
 import org.apache.gluten.backendsapi.bolt.BoltBackend
 import org.apache.gluten.config.GlutenConfig
-import org.apache.gluten.execution.OffloadPaimonScan
+import org.apache.gluten.execution.BoltOffloadPaimonScan
 import org.apache.gluten.extension.columnar.heuristic.HeuristicTransform
 import org.apache.gluten.extension.columnar.validator.Validators
 import org.apache.gluten.extension.injector.Injector
@@ -37,7 +37,7 @@ class BoltPaimonComponent extends Component {
   override def injectRules(injector: Injector): Unit = {
     injector.gluten.legacy.injectTransform {
       c =>
-        val offload = Seq(OffloadPaimonScan())
+        val offload = Seq(BoltOffloadPaimonScan())
         HeuristicTransform.Simple(
           Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
           offload

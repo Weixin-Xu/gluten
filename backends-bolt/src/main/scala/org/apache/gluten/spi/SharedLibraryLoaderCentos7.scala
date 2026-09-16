@@ -38,8 +38,6 @@ class SharedLibraryLoaderCentos7 extends SharedLibraryLoader {
     loader.loadAndCreateLink("libboost_context.so.1.84.0", "libboost_context.so")
     loader.loadAndCreateLink("libdouble-conversion.so.1", "libdouble-conversion.so")
     loader.loadAndCreateLink("libevent-2.0.so.5", "libevent-2.0.so")
-    loader.loadAndCreateLink("libgflags.so.2.2", "libgflags.so")
-    loader.loadAndCreateLink("libglog.so.0", "libglog.so")
     loader.loadAndCreateLink("libprotobuf.so.32", "libprotobuf.so")
     loader.loadAndCreateLink("libre2.so.10", "libre2.so")
     loader.loadAndCreateLink("libzstd.so.1", "libzstd.so")

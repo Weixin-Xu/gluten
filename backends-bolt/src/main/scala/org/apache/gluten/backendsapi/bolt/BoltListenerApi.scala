@@ -206,7 +206,12 @@ class BoltListenerApi extends ListenerApi with Logging {
     // Initial library loader.
     val loader = new BoltJniLibLoader(JniWorkspace.getDefault.getWorkDir)
 
-    // Load libloader first so the JVM-loaded Bolt backend can be promoted to RTLD_GLOBAL.
+    // Load the shared flag registries required by Gluten and Bolt before their dependent libraries.
+    flagRegistryLibraries(
+      platformLibDir,
+      path => getClass.getClassLoader.getResource(path) != null).foreach(loader.load(_, false))
+
+    // Load libloader so the JVM-loaded Bolt backend can be promoted to RTLD_GLOBAL.
     loader.load(s"$platformLibDir/${System.mapLibraryName("glutenlibloader")}", false)
 
     // Load shared native libraries the backend libraries depend on.
@@ -265,6 +270,21 @@ object BoltListenerApi {
     }
     val arch = System.getProperty("os.arch")
     s"$osName/$arch"
+  }
+
+  private[bolt] def flagRegistryLibraries(
+      platformLibDir: String,
+      resourceExists: String => Boolean): Seq[String] = {
+    val libraries = Seq(
+      s"$platformLibDir/${System.mapLibraryName("gflags_nothreads")}",
+      s"$platformLibDir/${System.mapLibraryName("glog")}")
+    libraries.map(resourceExists) match {
+      case Seq(true, true) => libraries
+      case availability =>
+        val missing = libraries.zip(availability).collect { case (library, false) => library }
+        throw new IllegalStateException(
+          s"Incomplete Bolt flag registry resources; missing ${missing.mkString(", ")}")
+    }
   }
 
   private def inLocalMode(conf: SparkConf): Boolean = {

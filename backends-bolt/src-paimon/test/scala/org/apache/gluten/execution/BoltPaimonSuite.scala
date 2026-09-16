@@ -20,12 +20,19 @@ import org.apache.gluten.backendsapi.BackendsApiManager
 import org.apache.gluten.test.FallbackUtil
 
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.DataFrame
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, GlutenQueryTest, Row}
+import org.apache.spark.sql.execution.datasources.v2.BatchScanExec
 import org.apache.spark.sql.functions.{col, concat, lit}
 import org.apache.spark.sql.types.{DecimalType, DoubleType, FloatType, IntegerType, LongType, StructType}
 
-import scala.reflect.ClassTag
+import io.substrait.proto.ReadRel
+import org.apache.paimon.spark.{PaimonInputPartition, PaimonScan}
+import org.apache.paimon.table.source.DataSplit
+
+import java.sql.Timestamp
+import java.time.Instant
+
+import scala.collection.JavaConverters._
 import scala.util.Random
 
 class BoltPaimonSuite extends WholeStageTransformerSuite {
@@ -86,22 +93,81 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
     spark.sql(s"DROP TABLE IF EXISTS $tableName0")
   }
 
-  /**
-   * Check whether the executed plan of a dataframe contains the expected plan.
-   * @param df:
-   *   the input dataframe.
-   * @param tag:
-   *   class of the expected plan.
-   * @tparam T:
-   *   type of the expected plan.
-   */
-  def checkOperatorMatch[T <: TransformSupport](df: DataFrame)(implicit tag: ClassTag[T]): Unit = {
-    val executedPlan = getExecutedPlan(df)
-    assert(
-      executedPlan.exists(plan => tag.runtimeClass.isInstance(plan)),
-      s"Expect ${tag.runtimeClass.getClass.getSimpleName} exists " +
-        s"in executedPlan:\n $executedPlan"
-    )
+  private def boltPaimonScanNode(df: DataFrame): BoltPaimonScanTransformer = {
+    val plan = getExecutedPlan(df)
+    plan.collectFirst {
+      case value: BoltPaimonScanTransformer => value
+    }.getOrElse(fail(s"BoltPaimonScanTransformer missing from:\n${df.queryExecution.executedPlan}"))
+  }
+
+  private def boltPaimonScan(df: DataFrame): BoltPaimonScanTransformer = {
+    val scan = boltPaimonScanNode(df)
+    val localFiles = scan.getSplitInfos.map(
+      _.toProtobuf.asInstanceOf[ReadRel.LocalFiles])
+    assert(localFiles.nonEmpty, "Bolt Paimon scan produced no LocalFiles")
+    localFiles.foreach {
+      files =>
+        assert(files.getItemsCount > 0, files.toString)
+        files.getItemsList.asScala.foreach {
+          item =>
+            assert(item.hasPaimon, item.toString)
+            assert(!item.getPaimon.getSerializedSplit.isEmpty, item.toString)
+        }
+    }
+    scan
+  }
+
+  private def assertJavaBatchScan(df: DataFrame): Unit = {
+    val plan = getExecutedPlan(df)
+    assert(!plan.exists(_.isInstanceOf[BoltPaimonScanTransformer]), plan.toString())
+    assert(plan.exists(_.isInstanceOf[BatchScanExec]), plan.toString())
+  }
+
+  private def rawInputRows(df: DataFrame): Long = {
+    df.collect()
+    boltPaimonScan(df).metrics
+      .get("rawInputRows")
+      .map(_.value)
+      .getOrElse(fail("rawInputRows metric is missing from BoltPaimonScanTransformer"))
+  }
+
+  private def runJavaQueryAndCompare(query: String): DataFrame =
+    runQueryAndCompare(query, noFallBack = false)(assertJavaBatchScan)
+
+  private def assertMultiSplitOrderAndAffinity(scan: BoltPaimonScanTransformer): Unit = {
+    val paimonScan = scan.scan.asInstanceOf[PaimonScan]
+    val expectedSplits = paimonScan.toBatch.planInputPartitions().toSeq.flatMap {
+      case partition: PaimonInputPartition =>
+        partition.splits.map(_.asInstanceOf[DataSplit])
+      case partition => fail(s"Unexpected Paimon input partition: ${partition.getClass.getName}")
+    }
+    assert(expectedSplits.size > 1, s"Expected multiple DataSplits, found ${expectedSplits.size}")
+
+    val actualItems = scan.getSplitInfos.flatMap {
+      info =>
+        info.toProtobuf
+          .asInstanceOf[ReadRel.LocalFiles]
+          .getItemsList
+          .asScala
+    }
+    assert(actualItems.size == expectedSplits.size)
+    expectedSplits.zip(actualItems).foreach {
+      case (split, item) =>
+        assert(
+          java.util.Arrays.equals(
+            PaimonSplitSerde.serialize(split),
+            item.getPaimon.getSerializedSplit.toByteArray))
+        val rawFiles = split.convertToRawFiles()
+        if (rawFiles.isPresent && !rawFiles.get().isEmpty) {
+          assert(item.getUriFile == rawFiles.get().get(0).path())
+        }
+    }
+  }
+
+  override protected def checkAnswer(df: => DataFrame, expectedAnswer: Seq[Row]): Unit = {
+    val analyzedDf = df
+    assertEmptyMissingInput(analyzedDf)
+    GlutenQueryTest.checkAnswer(analyzedDf, expectedAnswer, checkToRDD = false)
   }
 
   // test for append table
@@ -128,13 +194,13 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
             runQueryAndCompare(s"""
                                   |select * from $tbl_name;
                                   |""".stripMargin) {
-              checkOperatorMatch[PaimonScanTransformer]
+              boltPaimonScan
             }
 
             runQueryAndCompare(s"""
                                   |select * from $tbl_name where id = 10;
                                   |""".stripMargin) {
-              checkOperatorMatch[PaimonScanTransformer]
+              boltPaimonScan
             }
           }
         }
@@ -176,18 +242,555 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
       runQueryAndCompare(s"""
                             |select * from $tbl_name where dt = '20250506';
                             |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
+        boltPaimonScan
       }
 
       runQueryAndCompare(s"""
                             |select * from $tbl_name where dt = '20250506';
                             |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
+        boltPaimonScan
       }
     }
   }
 
-  test("paimon transformer exists: primary key table(full compact)") {
+  test("Bolt append scans preserve split order and reduce raw rows for pushed filters") {
+    val table = "paimon_append_matrix"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id BIGINT, payload STRING) USING paimon
+                   |TBLPROPERTIES (
+                   |  'file.format' = 'parquet',
+                   |  'bucket' = '8',
+                   |  'bucket-key' = 'id')
+                   |""".stripMargin)
+      spark.range(0, 4096)
+        .select(col("id"), concat(lit("value-"), col("id")).as("payload"))
+        .writeTo(table)
+        .append()
+
+      val unfiltered = runQueryAndCompare(s"SELECT id, payload FROM $table") {
+        scan => assertMultiSplitOrderAndAffinity(boltPaimonScan(scan))
+      }
+      runQueryAndCompare(s"SELECT payload FROM $table WHERE id = 17") {
+        boltPaimonScan
+      }
+      val filtered = runQueryAndCompare(
+        s"SELECT id FROM $table WHERE id >= 16 AND id < 32 AND length(payload) > 0") {
+        boltPaimonScan
+      }
+
+      assert(rawInputRows(filtered) < rawInputRows(unfiltered))
+    }
+  }
+
+  test("Bolt append scan matches Java for null and complex native types") {
+    val table = "paimon_native_types"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (
+                   |  id INT,
+                   |  nullable_value STRING,
+                   |  amount DECIMAL(38, 18),
+                   |  event_date DATE,
+                   |  event_time TIMESTAMP,
+                   |  payload BINARY,
+                   |  numbers ARRAY<INT>,
+                   |  labels MAP<STRING, INT>,
+                   |  nested STRUCT<x: INT, y: STRING>)
+                   |USING paimon
+                   |TBLPROPERTIES ('file.format' = 'parquet')
+                   |""".stripMargin)
+      spark.sql(s"""
+                   |INSERT INTO $table SELECT
+                   |  1,
+                   |  CAST(NULL AS STRING),
+                   |  CAST('12345678901234567890.123456789012345678' AS DECIMAL(38, 18)),
+                   |  DATE '2026-08-31',
+                   |  TIMESTAMP '2026-08-31 12:34:56.123456',
+                   |  unhex('00017fff'),
+                   |  array(1, CAST(NULL AS INT), 3),
+                   |  map('first', 10, 'second', CAST(NULL AS INT)),
+                   |  named_struct('x', 7, 'y', 'nested')
+                   |""".stripMargin)
+
+      runQueryAndCompare(s"SELECT * FROM $table") {
+        boltPaimonScan
+      }
+    }
+  }
+
+  test("Bolt Parquet scan preserves negative epoch timestamp microseconds by default") {
+    val table = "paimon_negative_timestamp"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"CREATE TABLE $table (id INT, event_time TIMESTAMP) USING paimon " +
+          "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, TIMESTAMP '1969-12-31 23:59:59.123456'), " +
+          "(2, TIMESTAMP '1970-01-01 00:00:00.654321')")
+
+        val df = runQueryAndCompare(s"SELECT id, event_time FROM $table ORDER BY id") {
+          boltPaimonScan
+        }
+        checkAnswer(
+          df,
+          Seq(
+            Row(1, Timestamp.valueOf("1969-12-31 23:59:59.123456")),
+            Row(2, Timestamp.valueOf("1970-01-01 00:00:00.654321"))))
+      }
+    }
+  }
+
+  test("Bolt Parquet scan honors millisecond timestamp unit for negative epochs") {
+    val table = "paimon_millisecond_timestamp"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"CREATE TABLE $table (id INT, event_time TIMESTAMP) USING paimon " +
+          "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, TIMESTAMP '1969-12-31 23:59:59.123456'), " +
+          "(2, TIMESTAMP '1970-01-01 00:00:00.654321')")
+
+        withSQLConf("spark.gluten.paimon.read.timestamp-unit" -> "3") {
+          val df = spark.sql(s"SELECT id, event_time FROM $table ORDER BY id")
+          checkAnswer(
+            df,
+            Seq(
+              Row(1, Timestamp.valueOf("1969-12-31 23:59:59.123")),
+              Row(2, Timestamp.valueOf("1970-01-01 00:00:00.654"))))
+          boltPaimonScan(df)
+        }
+      }
+    }
+  }
+
+  test("Bolt Paimon falls back for Timestamp partition values") {
+    val table = "paimon_timestamp_partition"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"CREATE TABLE $table (id INT, p TIMESTAMP) USING paimon " +
+          "PARTITIONED BY (p) " +
+          "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, TIMESTAMP '1969-12-31 23:59:59.123456'), " +
+          "(2, TIMESTAMP '2026-09-14 12:34:56.654321')")
+
+        val df = runJavaQueryAndCompare(s"SELECT id, p FROM $table ORDER BY id")
+        checkAnswer(
+          df,
+          Seq(
+            Row(1, Timestamp.valueOf("1969-12-31 23:59:59.123456")),
+            Row(2, Timestamp.valueOf("2026-09-14 12:34:56.654321"))))
+      }
+    }
+  }
+
+  test("Bolt append scans preserve results with predicate filtering disabled") {
+    val table = "paimon_predicate_disabled"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT, value STRING) USING paimon " +
+        "TBLPROPERTIES ('file.format' = 'parquet')")
+      spark.sql(s"INSERT INTO $table VALUES " +
+        "(1, 'one'), (2, 'two'), (3, 'three'), (4, NULL), (NULL, 'two'), (NULL, NULL)")
+      withSQLConf("spark.gluten.paimon.read.predicate-filter-enabled" -> "false") {
+        runQueryAndCompare(s"SELECT id FROM $table WHERE id = 2") {
+          boltPaimonScan
+        }
+        // A cross-column OR cannot be enforced by Parquet's subfield filters. The
+        // full residual must survive even when both leaves translate to Paimon.
+        val df = runQueryAndCompare(s"SELECT id FROM $table WHERE id = 1 OR value = 'two'") {
+          boltPaimonScan
+        }
+        checkAnswer(df, Seq(Row(1), Row(2), Row(null)))
+      }
+    }
+  }
+
+  test("Bolt Paimon preserves physical field names in case insensitive scans") {
+    val table = "paimon_mixed_case"
+    withTable(table) {
+      withSQLConf("spark.sql.caseSensitive" -> "false") {
+        spark.sql(s"CREATE TABLE $table (ID INT, Payload STRUCT<MixedField: INT>) " +
+          "USING paimon TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, named_struct('MixedField', 10)), (2, named_struct('MixedField', 20))")
+        val df = runQueryAndCompare(
+          s"SELECT id, payload.mixedfield FROM $table WHERE id = 2") {
+          boltPaimonScan
+        }
+        checkAnswer(df, Seq(Row(2, 20)))
+      }
+    }
+  }
+
+  test("Bolt Paimon timestamp precision follows each session configuration") {
+    val table = "paimon_session_timestamp"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"CREATE TABLE $table (id INT, ts TIMESTAMP) USING paimon " +
+          "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, TIMESTAMP '1969-12-31 23:59:59.123456')")
+        val query = s"SELECT ts FROM $table WHERE id = 1"
+        // Use the Java reader's instant rather than Timestamp.valueOf, which uses the JVM zone.
+        var javaTimestamp: Timestamp = null
+        withSQLConf(vanillaSparkConfs(): _*) {
+          javaTimestamp = spark.sql(query).collect().head.getTimestamp(0)
+        }
+        assert(javaTimestamp.getNanos == 123456000)
+        Seq("6", "3", "6").foreach {
+          unit =>
+            withSQLConf("spark.gluten.paimon.read.timestamp-unit" -> unit) {
+              val expected = Timestamp.from(javaTimestamp.toInstant)
+              if (unit == "3") {
+                expected.setNanos(expected.getNanos / 1000000 * 1000000)
+              }
+              val df = spark.sql(query)
+              checkAnswer(df, Seq(Row(expected)))
+              boltPaimonScan(df)
+            }
+        }
+      }
+    }
+  }
+
+  test("Bolt append scans support constant projections and empty results") {
+    val table = "paimon_constant_projection"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT) USING paimon " +
+        "TBLPROPERTIES ('file.format' = 'parquet')")
+      spark.sql(s"INSERT INTO $table VALUES (1), (2), (3)")
+      val constantProjection = runQueryAndCompare(s"SELECT 1 FROM $table") {
+        boltPaimonScanNode
+      }
+      checkAnswer(constantProjection, Seq(Row(1), Row(1), Row(1)))
+      runQueryAndCompare(s"SELECT id FROM $table WHERE id > 10") {
+        boltPaimonScanNode
+      }
+    }
+  }
+
+  test("Bolt Paimon storage partition join preserves empty task partitions") {
+    withSQLConf(
+      "spark.sql.adaptive.enabled" -> "false",
+      "spark.sql.autoBroadcastJoinThreshold" -> "-1",
+      "spark.sql.sources.v2.bucketing.enabled" -> "true",
+      "spark.sql.sources.v2.bucketing.pushPartValues.enabled" -> "true",
+      "spark.sql.sources.v2.bucketing.partiallyClusteredDistribution.enabled" -> "false"
+    ) {
+      withTable("paimon_join_left", "paimon_join_right") {
+        Seq("paimon_join_left", "paimon_join_right").foreach {
+          table =>
+            sql(s"CREATE TABLE $table (id INT) USING paimon " +
+              "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '4', 'bucket-key' = 'id')")
+        }
+        sql("INSERT INTO paimon_join_left SELECT CAST(id AS INT) FROM range(64)")
+        sql("INSERT INTO paimon_join_right VALUES (0)")
+        val df = sql("SELECT l.id, r.id FROM paimon_join_left l " +
+          "LEFT JOIN paimon_join_right r ON l.id = r.id")
+        checkAnswer(df, (0 until 64).map(id => Row(id, if (id == 0) 0 else null)))
+        val scans = getExecutedPlan(df).collect { case scan: BoltPaimonScanTransformer => scan }
+        assert(scans.size == 2, df.queryExecution.executedPlan.toString)
+        assert(
+          scans.exists(_.getSplitInfos.exists(
+            _.toProtobuf.asInstanceOf[ReadRel.LocalFiles].getItemsCount == 0)),
+          "Storage partition join did not exercise an empty Paimon task partition"
+        )
+      }
+    }
+  }
+
+  test("Bolt Paimon reports scan rows and actual storage reads") {
+    val table = "paimon_read_metrics"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT, value STRING) USING paimon " +
+        "TBLPROPERTIES ('file.format' = 'parquet', 'bucket' = '-1')")
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two'), (3, 'three')")
+      val df = spark.sql(s"SELECT * FROM $table")
+      checkAnswer(df, Seq(Row(1, "one"), Row(2, "two"), Row(3, "three")))
+      val metrics = boltPaimonScan(df).metrics
+      assert(metrics("rawInputRows").value == 3)
+      assert(metrics("rawInputBytes").value > 0)
+      assert(metrics("storageReadBytes").value == metrics("rawInputBytes").value)
+      assert(metrics("storageReadCount").value > 0)
+    }
+  }
+
+  test("Bolt append scan follows schema evolution and compaction") {
+    val table = "paimon_append_evolution"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, value STRING) USING paimon
+                   |TBLPROPERTIES (
+                   |  'file.format' = 'parquet',
+                   |  'bucket' = '1',
+                   |  'bucket-key' = 'id',
+                   |  'target-file-size' = '100b')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two')")
+      runQueryAndCompare(s"SELECT id, value FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+
+      spark.sql(s"ALTER TABLE $table ADD COLUMN note STRING")
+      spark.sql(s"INSERT INTO $table (id, value, note) VALUES (3, 'three', 'added')")
+      runQueryAndCompare(s"SELECT id, value, note FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+
+      spark.sql(s"ALTER TABLE $table RENAME COLUMN note TO renamed_note")
+      runQueryAndCompare(s"SELECT id, renamed_note FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+
+      spark.sql(s"ALTER TABLE $table DROP COLUMN value")
+      runQueryAndCompare(s"SELECT id, renamed_note FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+
+      spark.sql(s"CALL sys.compact(table => '$table')")
+      runQueryAndCompare(s"SELECT id, renamed_note FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+    }
+  }
+
+  test("Bolt ORC scan supports ordinary filtering") {
+    val table = "paimon_native_orc"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, value STRING) USING paimon
+                   |TBLPROPERTIES ('file.format' = 'orc')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two')")
+
+      val df = runQueryAndCompare(s"SELECT * FROM $table WHERE id >= 2 ORDER BY id") {
+        boltPaimonScan
+      }
+      checkAnswer(df, Seq(Row(2, "two")))
+    }
+  }
+
+  test("Bolt ORC scan matches Spark for decimal and complex columns") {
+    val table = "paimon_orc_native_types"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"""
+                     |CREATE TABLE $table (
+                     |  id INT,
+                     |  amount DECIMAL(38, 6),
+                     |  numbers ARRAY<INT>,
+                     |  labels MAP<STRING, INT>,
+                     |  nested STRUCT<x: INT, y: STRING>)
+                     |USING paimon
+                     |TBLPROPERTIES ('file.format' = 'orc', 'bucket' = '-1')
+                     |""".stripMargin)
+        spark.sql(s"""
+                     |INSERT INTO $table VALUES
+                     |  (1, 12345678901234567890123456789012.123456,
+                     |    array(1, CAST(NULL AS INT), 3),
+                     |    map('first', 10, 'second', CAST(NULL AS INT)),
+                     |    named_struct('x', 7, 'y', 'nested')),
+                     |  (2, NULL, NULL, NULL, NULL)
+                     |""".stripMargin)
+
+        runQueryAndCompare(s"SELECT * FROM $table ORDER BY id") {
+          boltPaimonScan
+        }
+      }
+    }
+  }
+
+  test("Bolt ORC scan falls back for exact Timestamp results") {
+    val table = "paimon_orc_timestamp_fallback"
+    withTable(table) {
+      withSQLConf("spark.sql.session.timeZone" -> "UTC") {
+        spark.sql(s"CREATE TABLE $table (id INT, event_time TIMESTAMP) USING paimon " +
+          "TBLPROPERTIES ('file.format' = 'orc', 'bucket' = '-1')")
+        spark.sql(s"INSERT INTO $table VALUES " +
+          "(1, TIMESTAMP '1969-12-31 23:59:59.123456'), " +
+          "(2, TIMESTAMP '1970-01-01 00:00:00.654321')")
+
+        val df = runJavaQueryAndCompare(s"SELECT id, event_time FROM $table ORDER BY id")
+        checkAnswer(
+          df,
+          Seq(
+            Row(1, Timestamp.from(Instant.parse("1969-12-31T23:59:59.123456Z"))),
+            Row(2, Timestamp.from(Instant.parse("1970-01-01T00:00:00.654321Z")))))
+      }
+    }
+  }
+
+  test("Bolt ORC scan supports constant count and empty projections") {
+    val table = "paimon_orc_projections"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT) USING paimon " +
+        "TBLPROPERTIES ('file.format' = 'orc', 'bucket' = '-1')")
+      spark.sql(s"INSERT INTO $table VALUES (1), (2), (3)")
+
+      val constantProjection = runQueryAndCompare(s"SELECT 1 FROM $table") {
+        boltPaimonScanNode
+      }
+      checkAnswer(constantProjection, Seq(Row(1), Row(1), Row(1)))
+      val count = runQueryAndCompare(s"SELECT COUNT(*) FROM $table WHERE id >= 2") {
+        boltPaimonScanNode
+      }
+      checkAnswer(count, Seq(Row(2L)))
+      val empty = runQueryAndCompare(s"SELECT id FROM $table WHERE id > 10") {
+        boltPaimonScanNode
+      }
+      checkAnswer(empty, Seq.empty)
+    }
+  }
+
+  test("Bolt ORC scan follows schema evolution") {
+    val table = "paimon_orc_evolution"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT, value STRING) USING paimon " +
+        "TBLPROPERTIES ('file.format' = 'orc', 'bucket' = '-1')")
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two')")
+      spark.sql(s"ALTER TABLE $table ADD COLUMN note STRING")
+      spark.sql(s"INSERT INTO $table (id, value, note) VALUES (3, 'three', 'added')")
+
+      val df = runQueryAndCompare(s"SELECT id, value, note FROM $table ORDER BY id") {
+        boltPaimonScan
+      }
+      checkAnswer(
+        df,
+        Seq(Row(1, "one", null), Row(2, "two", null), Row(3, "three", "added")))
+    }
+  }
+
+  test("Bolt Paimon falls back for metadata column reads") {
+    val table = "paimon_fallback_metadata"
+    withTable(table) {
+      spark.sql(s"CREATE TABLE $table (id INT, value STRING) USING paimon")
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two')")
+
+      val df = runJavaQueryAndCompare(
+        s"SELECT id, __paimon_row_index FROM $table ORDER BY id")
+      val rows = df.collect()
+      assert(rows.map(_.getInt(0)).toSeq == Seq(1, 2))
+      assert(rows.forall(!_.isNullAt(1)))
+    }
+  }
+
+  test("Bolt Paimon falls back when deletion vectors are enabled") {
+    val table = "paimon_fallback_deletion_vectors"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, value STRING) USING paimon
+                   |TBLPROPERTIES (
+                   |  'file.format' = 'parquet',
+                   |  'deletion-vectors.enabled' = 'true')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 'one'), (2, 'two')")
+
+      val df = runJavaQueryAndCompare(s"SELECT * FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, "one"), Row(2, "two")))
+    }
+  }
+
+  test("Bolt Paimon falls back for LOOKUP changelog tables") {
+    val table = "paimon_fallback_lookup"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, value STRING) USING paimon
+                   |TBLPROPERTIES (
+                   |  'primary-key' = 'id',
+                   |  'bucket' = '1',
+                   |  'changelog-producer' = 'lookup')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 'old'), (2, 'two')")
+      spark.sql(s"INSERT INTO $table VALUES (1, 'new')")
+
+      val df = runJavaQueryAndCompare(s"SELECT * FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, "new"), Row(2, "two")))
+    }
+  }
+
+  test("Bolt Paimon falls back for deduplicate merge tables") {
+    val table = "paimon_fallback_deduplicate"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, value STRING) USING paimon
+                   |TBLPROPERTIES (
+                   |  'primary-key' = 'id',
+                   |  'bucket' = '1',
+                   |  'merge-engine' = 'deduplicate')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 'old'), (2, 'two')")
+      spark.sql(s"INSERT INTO $table VALUES (1, 'new')")
+
+      val df = runJavaQueryAndCompare(s"SELECT * FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, "new"), Row(2, "two")))
+    }
+  }
+
+  test("Bolt Paimon falls back for partial-update merge tables") {
+    val table = "paimon_fallback_partial_update"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, left_value INT, right_value INT) USING paimon
+                   |TBLPROPERTIES (
+                   |  'primary-key' = 'id',
+                   |  'bucket' = '1',
+                   |  'merge-engine' = 'partial-update')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 10, NULL)")
+      spark.sql(s"INSERT INTO $table VALUES (1, NULL, 20)")
+
+      val df = runJavaQueryAndCompare(s"SELECT * FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, 10, 20)))
+    }
+  }
+
+  test("Bolt Paimon falls back for aggregation merge tables") {
+    val table = "paimon_fallback_aggregation"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, total BIGINT) USING paimon
+                   |TBLPROPERTIES (
+                   |  'primary-key' = 'id',
+                   |  'bucket' = '1',
+                   |  'merge-engine' = 'aggregation',
+                   |  'fields.total.aggregate-function' = 'sum')
+                   |""".stripMargin)
+      spark.sql(s"INSERT INTO $table VALUES (1, 10), (2, 7)")
+      spark.sql(s"INSERT INTO $table VALUES (1, 20)")
+
+      val df = runJavaQueryAndCompare(s"SELECT * FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, 30L), Row(2, 7L)))
+    }
+  }
+
+  test("Bolt Paimon falls back for chain tables") {
+    val table = "paimon_fallback_chain"
+    withTable(table) {
+      spark.sql(s"""
+                   |CREATE TABLE $table (id INT, seq INT, value STRING, dt STRING) USING paimon
+                   |PARTITIONED BY (dt)
+                   |TBLPROPERTIES (
+                   |  'primary-key' = 'id,dt',
+                   |  'bucket' = '1',
+                   |  'sequence.field' = 'seq',
+                   |  'scan.fallback-snapshot-branch' = 'chain_snapshot',
+                   |  'scan.fallback-delta-branch' = 'chain_delta',
+                   |  'partition.timestamp-pattern' = '$$dt',
+                   |  'partition.timestamp-formatter' = 'yyyy-MM-dd')
+                   |""".stripMargin)
+      spark.sql(s"CALL sys.create_branch(table => '$table', branch => 'chain_snapshot')")
+      spark.sql(s"CALL sys.create_branch(table => '$table', branch => 'chain_delta')")
+      spark.sql(s"ALTER TABLE $table SET TBLPROPERTIES ('chain-table.enabled' = 'true')")
+      spark.sql(s"INSERT INTO $table VALUES (1, 1, 'one', '2026-08-31')")
+      spark.sql(s"INSERT INTO $table VALUES (2, 1, 'two', '2026-09-01')")
+
+      val df = runJavaQueryAndCompare(s"SELECT id, value, dt FROM $table ORDER BY id")
+      checkAnswer(df, Seq(Row(1, "one", "2026-08-31"), Row(2, "two", "2026-09-01")))
+    }
+  }
+
+  test("paimon transformer fallback: primary key table after full compact") {
     val tbl_name = s"paimon_tb"
 
     withTable("paimon_tb") {
@@ -221,19 +824,15 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from source
                    |""".stripMargin)
 
-      runQueryAndCompare(s"""
-                            |select * from $tbl_name;
-                            |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select * from $tbl_name;
+                                |""".stripMargin)
 
-      // after full compact, it supports native scan
+      // Compaction does not move primary-key tables into the append-only native whitelist.
       spark.sql(s"CALL sys.compact(table => '$tbl_name')")
-      runQueryAndCompare(s"""
-                            |select * from $tbl_name;
-                            |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select * from $tbl_name;
+                                |""".stripMargin)
     }
   }
 
@@ -263,17 +862,13 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                        |insert into $tbl_name values(1, 1, '2')
                        |""".stripMargin)
 
-          runQueryAndCompare(s"""
-                                |select * from $tbl_name where id = 1;
-                                |""".stripMargin) {
-            checkOperatorMatch[PaimonScanTransformer]
-          }
+          runJavaQueryAndCompare(s"""
+                                    |select * from $tbl_name where id = 1;
+                                    |""".stripMargin)
 
-          runQueryAndCompare(s"""
-                                |select * from $tbl_name where name = '2';
-                                |""".stripMargin) {
-            checkOperatorMatch[PaimonScanTransformer]
-          }
+          runJavaQueryAndCompare(s"""
+                                    |select * from $tbl_name where name = '2';
+                                    |""".stripMargin)
         }
     }
   }
@@ -326,11 +921,9 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from source2
                    |""".stripMargin)
       spark.sql(s"select * from $tbl_name")
-      runQueryAndCompare(s"""
-                            |select * from $tbl_name;
-                            |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select * from $tbl_name;
+                                |""".stripMargin)
     }
   }
 
@@ -378,7 +971,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from secondBatch
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -428,7 +1021,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from secondBatch
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -471,7 +1064,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true)(df => FallbackUtil.hasFallback(df.queryExecution.executedPlan))
+        noFallBack = false)(assertJavaBatchScan)
     }
   }
 
@@ -510,11 +1103,9 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from source
                    |""".stripMargin)
 
-      runQueryAndCompare(s"""
-                            |select name from $tbl_name;
-                            |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select name from $tbl_name;
+                                |""".stripMargin)
     }
   }
 
@@ -541,7 +1132,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name values (1, 2)
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -568,7 +1159,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name values (1, NULL)
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -595,7 +1186,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name values (1, NULL)
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -643,7 +1234,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from secondBatch
                    |""".stripMargin)
 
-      runQueryAndCompare(s"select * from $tbl_name") { _ => }
+      runJavaQueryAndCompare(s"select * from $tbl_name")
     }
   }
 
@@ -685,8 +1276,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -718,8 +1309,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -750,8 +1341,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -793,8 +1384,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -830,8 +1421,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -879,8 +1470,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -928,8 +1519,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -977,8 +1568,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1026,8 +1617,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1066,8 +1657,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1119,8 +1710,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1172,8 +1763,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1221,8 +1812,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1270,8 +1861,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
         s"""
            |select * from $tbl_name;
            |""".stripMargin,
-        noFallBack = true) {
-        checkOperatorMatch[PaimonScanTransformer]
+        noFallBack = false) {
+        assertJavaBatchScan
       }
     }
   }
@@ -1308,11 +1899,9 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |values (1, 2, 2, 2, 2, 2, CAST(NULL AS INT));
                    |""".stripMargin)
 
-      runQueryAndCompare(s"""
-                            |select d from $tbl_name;
-                            |""".stripMargin) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select d from $tbl_name;
+                                |""".stripMargin)
     }
   }
 
@@ -1336,7 +1925,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
     """.stripMargin)
 
     runQueryAndCompare("SELECT name FROM T") {
-      checkOperatorMatch[PaimonScanTransformer]
+      boltPaimonScan
     }
   }
 
@@ -1362,7 +1951,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
     // delete isn't drop partition
     spark.sql("DELETE FROM T WHERE name = 'a' and hh = '12'")
     runQueryAndCompare("SELECT * FROM T ORDER BY id") {
-      checkOperatorMatch[PaimonScanTransformer]
+      boltPaimonScan
     }
   }
 
@@ -1400,13 +1989,9 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |insert into $tbl_name select * from source
                    |""".stripMargin)
 
-      runQueryAndCompare(
-        s"""
-           |select * from $tbl_name;
-           |""".stripMargin
-      ) {
-        checkOperatorMatch[PaimonScanTransformer]
-      }
+      runJavaQueryAndCompare(s"""
+                                |select * from $tbl_name;
+                                |""".stripMargin)
     }
 
   }
@@ -1425,11 +2010,9 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
 
     spark.sql("INSERT OVERWRITE T partition (dt='2024-04-18') values(1)")
 
-    runQueryAndCompare(s"""
-                          |SELECT * FROM T
-                          |""".stripMargin) {
-      checkOperatorMatch[PaimonScanTransformer]
-    }
+    runJavaQueryAndCompare(s"""
+                              |SELECT * FROM T
+                              |""".stripMargin)
   }
 
   // todo fix null partition
@@ -1450,7 +2033,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
     runQueryAndCompare(s"""
                           |SELECT * FROM T
                           |""".stripMargin) {
-      checkOperatorMatch[PaimonScanTransformer]
+      boltPaimonScan
     }
   }
 
@@ -1512,10 +2095,7 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
       s"""SELECT $metadataColumn, * FROM $tbl_name""",
       s"""SELECT $metadataColumn as metadataColumn, * FROM $tbl_name"""
     ).foreach {
-      query =>
-        runQueryAndCompare(query) {
-          checkOperatorMatch[PaimonScanTransformer]
-        }
+      query => runJavaQueryAndCompare(query)
     }
   }
 
@@ -1589,7 +2169,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |TBLPROPERTIES (
                    |'file.format' = 'parquet',
                    |'merge-engine' = 'deduplicate',
-                   |'primary-key' = 'id'
+                   |'primary-key' = 'id',
+                   |'deletion-vectors.enabled' = 'true'
                    |)""".stripMargin)
 
       spark.sql(s"INSERT INTO $tbl_name VALUES (1, '1'), (2, '2')")
@@ -1611,7 +2192,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |TBLPROPERTIES (
                    |'file.format' = 'parquet',
                    |'primary-key' = 'id',
-                   |'merge-engine' = 'partial-update'
+                   |'merge-engine' = 'partial-update',
+                   |'deletion-vectors.enabled' = 'true'
                    |)""".stripMargin)
 
       spark.sql(s"INSERT INTO $tbl_name VALUES (1, 'original1'), (2, 'original2')")
@@ -1761,7 +2343,8 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |create table $tbl_name (id INT, name STRING) using paimon
                    |TBLPROPERTIES (
                    |'file.format' = 'parquet',
-                   |'primary-key' = 'id'
+                   |'primary-key' = 'id',
+                   |'deletion-vectors.enabled' = 'true'
                    |)""".stripMargin)
 
       spark.sql(s"INSERT INTO $tbl_name VALUES (1, '1'), (2, '2')")
@@ -1772,22 +2355,20 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
           s"SELECT COUNT(*) FROM $tbl_name WHERE $metadataColumn IS NULL OR $metadataColumn = ''"),
         Row(0))
 
-      // check that the file paths are valid and that paths for 1/2 are different than 3/4
-      val results = spark.sql(s"SELECT $metadataColumn FROM $tbl_name ORDER BY id").collect()
+      // Deletion-vector tables may compact active rows from different commits into the same file.
+      // Verify the logical rows and the metadata contract without depending on file layout.
+      val results =
+        runJavaQueryAndCompare(s"SELECT id, $metadataColumn FROM $tbl_name ORDER BY id").collect()
+      assert(results.map(_.getInt(0)).toSeq == Seq(1, 2, 3, 4))
       results.foreach {
         row =>
           {
-            val path = row.getString(0)
+            val path = row.getString(1)
             assert(path.nonEmpty, "File path should be non-empty string")
             val uri = java.net.URI.create(path)
             assert(uri.isAbsolute, "uri must not be a relative path.")
           }
       }
-      val firstTwoPaths = results.take(2).map(_.getString(0))
-      val lastTwoPaths = results.drop(2).map(_.getString(0))
-      assert(firstTwoPaths.toSet.size == 1, "First two file paths should be the same")
-      assert(lastTwoPaths.toSet.size == 1, "Last two file paths should be the same")
-      assert(firstTwoPaths.head != lastTwoPaths.head, "Paths from two different inserts")
     }
   }
 
@@ -1801,12 +2382,11 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
                    |TBLPROPERTIES (
                    |'file.format' = 'parquet',
                    |'primary-key' = 'id',
-                   |'merge-engine' = 'partial-update'
+                   |'merge-engine' = 'partial-update',
+                   |'deletion-vectors.enabled' = 'true'
                    |)""".stripMargin)
 
       spark.sql(s"INSERT INTO $tbl_name VALUES (1, 'original1'), (2, 'original2')")
-      val results = spark.sql(s"SELECT $metadataColumn FROM $tbl_name").collect()
-
       spark.sql(s"INSERT INTO $tbl_name VALUES (1, 'updated1'), (3, 'new3')")
 
       checkAnswer(
@@ -1814,16 +2394,16 @@ class BoltPaimonSuite extends WholeStageTransformerSuite {
           s"SELECT COUNT(*) FROM $tbl_name WHERE $metadataColumn IS NULL OR $metadataColumn = ''"),
         Row(0))
 
-      val allPaths =
-        spark.sql(s"SELECT $metadataColumn FROM $tbl_name ORDER BY id").collect()
-      allPaths.foreach {
-        row => assert(row.getString(0).nonEmpty, "File path should be non-empty string")
+      val results = runJavaQueryAndCompare(
+        s"SELECT id, name, $metadataColumn FROM $tbl_name ORDER BY id").collect()
+      assert(results.map(row => (row.getInt(0), row.getString(1))).toSeq ==
+        Seq((1, "updated1"), (2, "original2"), (3, "new3")))
+      results.foreach {
+        row =>
+          val path = row.getString(2)
+          assert(path.nonEmpty, "File path should be non-empty string")
+          assert(java.net.URI.create(path).isAbsolute, "uri must not be a relative path.")
       }
-      // verify the overwritten data is different from the original
-      val overwriteResults = spark.sql(s"SELECT $metadataColumn FROM $tbl_name WHERE id = 1")
-      val overwriteResult = overwriteResults.head.getString(0)
-      val originalResult = results.head.getString(0)
-      assert(overwriteResult != originalResult, "Overwritten data should have a new file path")
     }
   }
 

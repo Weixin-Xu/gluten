@@ -17,15 +17,20 @@
 
 #include "JsonToProtoConverter.h"
 
+#include <google/protobuf/wrappers.pb.h>
 #include <filesystem>
+#include "PaimonTableEnhancement.pb.h"
 #include "bolt/common/base/tests/GTestUtils.h"
 #include "bolt/connectors/hive/HiveConnectorSplit.h"
+#include "bolt/connectors/hive/TableHandle.h"
+#include "bolt/connectors/paimon/PaimonTableHandle.h"
 #include "bolt/dwio/common/tests/utils/DataFiles.h"
 #include "bolt/exec/tests/utils/AssertQueryBuilder.h"
 #include "bolt/exec/tests/utils/HiveConnectorTestBase.h"
 #include "bolt/exec/tests/utils/TempDirectoryPath.h"
 #include "bolt/type/Type.h"
 #include "compute/BoltPlanConverter.h"
+#include "compute/paimon/PaimonConnectorUtils.h"
 #include "substrait/SubstraitToBoltPlan.h"
 
 #include "FilePathGenerator.h"
@@ -36,6 +41,38 @@ using namespace bytedance::bolt::connector::hive;
 using namespace bytedance::bolt::exec;
 
 namespace gluten {
+
+namespace {
+
+::substrait::Plan makeTableScanPlan(const google::protobuf::Message* enhancement = nullptr) {
+  ::substrait::Plan plan;
+  auto* read = plan.add_relations()->mutable_root()->mutable_input()->mutable_read();
+  auto* baseSchema = read->mutable_base_schema();
+  baseSchema->add_names("id");
+  baseSchema->mutable_struct_()->add_types()->mutable_i32()->set_nullability(
+      ::substrait::Type_Nullability_NULLABILITY_NULLABLE);
+  read->mutable_named_table()->add_names("table");
+  if (enhancement != nullptr) {
+    read->mutable_advanced_extension()->mutable_enhancement()->PackFrom(*enhancement);
+  }
+  return plan;
+}
+
+std::vector<::substrait::ReadRel_LocalFiles> makeSerializedPaimonLocalFiles() {
+  std::vector<::substrait::ReadRel_LocalFiles> localFiles(1);
+  localFiles.front().add_items()->mutable_paimon()->set_serialized_split("serialized-split");
+  return localFiles;
+}
+
+std::vector<::substrait::ReadRel_LocalFiles> makeHiveLocalFiles() {
+  std::vector<::substrait::ReadRel_LocalFiles> localFiles(1);
+  auto* file = localFiles.front().add_items();
+  file->set_uri_file("file:///tmp/hive.parquet");
+  file->mutable_parquet();
+  return localFiles;
+}
+
+} // namespace
 
 class Substrait2BoltPlanConversionTest : public exec::test::HiveConnectorTestBase {
  protected:
@@ -76,6 +113,147 @@ class Substrait2BoltPlanConversionTest : public exec::test::HiveConnectorTestBas
   std::shared_ptr<BoltPlanConverter> planConverter_ =
       std::make_shared<BoltPlanConverter>(std::vector<std::shared_ptr<ResultIterator>>(), pool(), boltCfg_.get());
 };
+
+TEST_F(Substrait2BoltPlanConversionTest, buildsPaimonHandlesForSerializedScan) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  (*enhancement.mutable_table_properties())["bucket"] = "2";
+
+  auto plan = planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), makeSerializedPaimonLocalFiles());
+  auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+  ASSERT_NE(scan, nullptr);
+
+  auto table = std::dynamic_pointer_cast<const connector::paimon::PaimonTableHandle>(scan->tableHandle());
+  ASSERT_NE(table, nullptr);
+  EXPECT_EQ(table->connectorId(), "paimon");
+  EXPECT_EQ(table->tablePath(), "file:///tmp/warehouse/table");
+
+  ASSERT_EQ(scan->assignments().size(), 1);
+  for (const auto& [name, handle] : scan->assignments()) {
+    auto column = std::dynamic_pointer_cast<const connector::paimon::PaimonColumnHandle>(handle);
+    ASSERT_NE(column, nullptr) << name;
+    EXPECT_EQ(column->name(), "id");
+  }
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, rejectsSerializedScanWithEmptyTablePath) {
+  PaimonTableEnhancement enhancement;
+
+  BOLT_ASSERT_THROW(
+      planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), makeSerializedPaimonLocalFiles()),
+      "Serialized Paimon scan requires non-empty table path");
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, preservesPaimonHandlesForEmptyTaskPartition) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  auto plan =
+      planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), std::vector<substrait::ReadRel_LocalFiles>(1));
+  auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+  ASSERT_NE(scan, nullptr);
+  ASSERT_NE(std::dynamic_pointer_cast<const connector::paimon::PaimonTableHandle>(scan->tableHandle()), nullptr);
+  const auto& info = planConverter_->splitInfos().at(scan->id());
+  auto splits = paimon::tryMakeSerializedConnectorSplits(info);
+  ASSERT_TRUE(splits.has_value());
+  EXPECT_TRUE(splits->empty());
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, validatesPaimonHandlesWithoutSplits) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  BoltPlanConverter validator({}, pool(), boltCfg_.get(), std::nullopt, std::nullopt, true);
+
+  auto plan = validator.toBoltPlan(makeTableScanPlan(&enhancement), {});
+  auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+  ASSERT_NE(scan, nullptr);
+  auto table = std::dynamic_pointer_cast<const connector::paimon::PaimonTableHandle>(scan->tableHandle());
+  ASSERT_NE(table, nullptr);
+  EXPECT_EQ(table->tablePath(), enhancement.table_path());
+  ASSERT_EQ(scan->assignments().size(), 1);
+  for (const auto& [name, handle] : scan->assignments()) {
+    auto column = std::dynamic_pointer_cast<const connector::paimon::PaimonColumnHandle>(handle);
+    ASSERT_NE(column, nullptr) << name;
+    EXPECT_EQ(column->name(), "id");
+  }
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, rejectsEmptyPaimonPathDuringValidation) {
+  PaimonTableEnhancement enhancement;
+  BoltPlanConverter validator({}, pool(), boltCfg_.get(), std::nullopt, std::nullopt, true);
+  BOLT_ASSERT_THROW(
+      validator.toBoltPlan(makeTableScanPlan(&enhancement), {}),
+      "Serialized Paimon scan requires non-empty table path");
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, forwardsBoundPaimonSchemaDuringValidationAndExecution) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  enhancement.set_table_schema_json(R"({"id":7,"fields":[{"id":0,"name":"id","type":"INT"}]})");
+  (*enhancement.mutable_table_properties())[paimon::kReadTableSchema] = "untrusted-table-option";
+  BoltPlanConverter validator({}, pool(), boltCfg_.get(), std::nullopt, std::nullopt, true);
+  const auto substraitPlan = makeTableScanPlan(&enhancement);
+  for (const auto& plan :
+       {validator.toBoltPlan(substraitPlan, {}),
+        planConverter_->toBoltPlan(substraitPlan, makeSerializedPaimonLocalFiles())}) {
+    auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+    ASSERT_NE(scan, nullptr);
+    auto table = std::dynamic_pointer_cast<const connector::paimon::PaimonTableHandle>(scan->tableHandle());
+    ASSERT_NE(table, nullptr);
+    EXPECT_EQ(
+        table->serialize()["tableProperties"][paimon::kReadTableSchema].asString(), enhancement.table_schema_json());
+  }
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, doesNotAcceptSchemaBindingFromTableOptions) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  (*enhancement.mutable_table_properties())[paimon::kReadTableSchema] = "untrusted-table-option";
+  auto plan = planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), makeSerializedPaimonLocalFiles());
+  auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+  ASSERT_NE(scan, nullptr);
+  auto table = std::dynamic_pointer_cast<const connector::paimon::PaimonTableHandle>(scan->tableHandle());
+  ASSERT_NE(table, nullptr);
+  EXPECT_EQ(table->serialize()["tableProperties"].count(paimon::kReadTableSchema), 0);
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, rejectsSerializedScanWithoutPaimonEnhancement) {
+  BOLT_ASSERT_THROW(
+      planConverter_->toBoltPlan(makeTableScanPlan(), makeSerializedPaimonLocalFiles()),
+      "Serialized Paimon scan requires Paimon table enhancement");
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, rejectsSerializedScanWithNonPaimonEnhancement) {
+  google::protobuf::StringValue enhancement;
+  enhancement.set_value("not-paimon");
+
+  BOLT_ASSERT_THROW(
+      planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), makeSerializedPaimonLocalFiles()),
+      "Serialized Paimon scan requires Paimon table enhancement");
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, preservesHiveHandlesForNonSerializedScan) {
+  auto plan = planConverter_->toBoltPlan(makeTableScanPlan(), makeHiveLocalFiles());
+  auto scan = std::dynamic_pointer_cast<const core::TableScanNode>(plan);
+  ASSERT_NE(scan, nullptr);
+
+  auto table = std::dynamic_pointer_cast<const connector::hive::HiveTableHandle>(scan->tableHandle());
+  ASSERT_NE(table, nullptr);
+  EXPECT_EQ(table->connectorId(), "test-hive");
+
+  ASSERT_EQ(scan->assignments().size(), 1);
+  for (const auto& [name, handle] : scan->assignments()) {
+    auto column = std::dynamic_pointer_cast<const connector::hive::HiveColumnHandle>(handle);
+    ASSERT_NE(column, nullptr) << name;
+  }
+}
+
+TEST_F(Substrait2BoltPlanConversionTest, rejectsPaimonEnhancementWithHiveSplits) {
+  PaimonTableEnhancement enhancement;
+  enhancement.set_table_path("file:///tmp/warehouse/table");
+  BOLT_ASSERT_THROW(
+      planConverter_->toBoltPlan(makeTableScanPlan(&enhancement), makeHiveLocalFiles()),
+      "Paimon table enhancement requires serialized Paimon splits");
+}
 
 // This test will firstly generate mock TPC-H lineitem ORC file. Then, Bolt's
 // computing will be tested based on the generated ORC file.

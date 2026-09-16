@@ -47,6 +47,8 @@ class GlutenConan(ConanFile):
         "build_benchmarks": False,
         "build_tests": False,
         "build_examples": False,
+        "glog/*:shared": True,
+        "gflags/*:shared": True,
     }
 
     build_policy = "missing"

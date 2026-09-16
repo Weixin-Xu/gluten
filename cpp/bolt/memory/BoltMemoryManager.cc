@@ -405,34 +405,18 @@ bool BoltMemoryManager::tryDestructSafe() {
 
   // Bolt memory manager considered safe to destruct when no alive pools.
   if (boltMemoryManager_) {
-    if (boltMemoryManager_->numPools() > 3) {
-      VLOG(2) << "Attempt to destruct BoltMemoryManager failed because there are " << boltMemoryManager_->numPools()
-              << " outstanding memory pools.";
-      return false;
-    }
-    if (boltMemoryManager_->numPools() == 3) {
-      // Assert the pool is spill pool
-      int32_t spillPoolCount = 0;
-      int32_t cachePoolCount = 0;
-      int32_t tracePoolCount = 0;
-      boltMemoryManager_->deprecatedSysRootPool().visitChildren([&](bolt::memory::MemoryPool* child) -> bool {
-        if (child == boltMemoryManager_->spillPool()) {
-          spillPoolCount++;
-        }
-        if (child == boltMemoryManager_->cachePool()) {
-          cachePoolCount++;
-        }
-        if (child == boltMemoryManager_->tracePool()) {
-          tracePoolCount++;
-        }
-        return true;
-      });
-      GLUTEN_CHECK(spillPoolCount == 1, "Illegal pool count state: spillPoolCount: " + std::to_string(spillPoolCount));
-      GLUTEN_CHECK(cachePoolCount == 1, "Illegal pool count state: cachePoolCount: " + std::to_string(cachePoolCount));
-      GLUTEN_CHECK(tracePoolCount == 1, "Illegal pool count state: tracePoolCount: " + std::to_string(tracePoolCount));
-    }
-    if (boltMemoryManager_->numPools() < 3) {
-      GLUTEN_CHECK(false, "Unreachable code");
+    using ManagedPoolState = bolt::memory::MemoryManager::ManagedPoolState;
+    const auto managedPoolState = boltMemoryManager_->inspectManagedPoolState();
+    switch (managedPoolState.kind) {
+      case ManagedPoolState::Kind::kHasOutstandingPools:
+        VLOG(2) << "Attempt to destruct BoltMemoryManager failed because there are " << managedPoolState.poolCount
+                << " outstanding memory pools.";
+        return false;
+      case ManagedPoolState::Kind::kInvalidSystemState:
+        GLUTEN_CHECK(false, managedPoolState.diagnostic);
+        break;
+      case ManagedPoolState::Kind::kOnlySystemPools:
+        break;
     }
   }
   boltMemoryManager_.reset();

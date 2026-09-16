@@ -106,6 +106,7 @@ const std::string kBoltMemReclaimMaxWaitMs = "spark.gluten.sql.columnar.backend.
 const uint64_t kBoltMemReclaimMaxWaitMsDefault = 3600000; // 60min
 
 const std::string kHiveConnectorId = "test-hive";
+const std::string kPaimonConnectorId = "paimon";
 const std::string kBoltCacheEnabled = "spark.gluten.sql.columnar.backend.bolt.cacheEnabled";
 
 const std::string kExprMaxCompiledRegexes = "spark.gluten.sql.columnar.backend.bolt.maxCompiledRegexes";

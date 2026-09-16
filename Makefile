@@ -51,6 +51,10 @@ SHARED_LIBRARY ?= True
 GLUTEN_PACKAGE_VERSION := $(shell sed -n '0,/<version>\(.*\)<\/version>/s//\1/p' \
     ${ROOT_DIR}/package/pom.xml | head -1 | xargs)
 
+BOLT_PAIMON_SPARK35_PROFILES := -Pfast-build -Pbackends-bolt -Pspark-3.5 -Pscala-2.12 \
+	-Ppaimon -Phadoop-3.2 -Pceleborn -Piceberg
+BOLT_PAIMON_SPARK35_SUITES := org.apache.gluten.execution.BoltPaimonPlanningSuite,org.apache.gluten.execution.BoltPaimonSuite,org.apache.gluten.execution.BoltPaimonCommonSuite,org.apache.gluten.execution.PaimonSplitSerdeSuite,org.apache.gluten.execution.BoltPaimonSchemaCompatibilitySuite,org.apache.gluten.execution.BoltPaimonSchemaEvolutionPlanningSuite
+
 # Manually specify the number of bolt compilation threads by setting the BOLT_NUM_THREADS environment variable.
 # e.g. export BOLT_NUM_THREADS=50
 ifndef CI_NUM_THREADS
@@ -81,7 +85,8 @@ endif
 	release-with-benchmarks debug-with-benchmarks \
 	release-with-tests-and-benchmarks debug-with-tests-and-benchmarks \
 	java jar jar-skip-check jar_spark33 jar_spark34 jar_spark35 \
-	fast-jar zip fast-zip test test_spark35 cpp-test-release cpp-test-debug
+	fast-jar zip fast-zip test test_spark35 cpp-test-release cpp-test-debug \
+	check_paimon_jdk11 jar_spark35_paimon test_spark35_paimon
 
 bolt-recipe:
 	@echo "Install Bolt recipe into local cache"
@@ -212,6 +217,21 @@ test:
 
 test_spark35:
 	SPARK_TESTING=true build/mvn -ntp -Pbackends-bolt -Pspark-3.5 -Phadoop-3.2 -Pceleborn -Piceberg package -Denforcer.skip=true -DfailIfNoTests=false -Dexec.skip -Dmaven.test.failure.ignore=true
+
+# Build the native Bolt backend before invoking these JVM-only targets.
+check_paimon_jdk11:
+	@test "$(JDK_VERSION)" = "11" || { echo "Bolt Paimon Spark 3.5 requires JAVA_HOME pointing to JDK 11." >&2; exit 1; }
+
+jar_spark35_paimon: check_paimon_jdk11
+	./build/mvn -ntp package $(BOLT_PAIMON_SPARK35_PROFILES) -DskipTests
+	mkdir -p output
+	cp package/target/gluten-package-$(GLUTEN_PACKAGE_VERSION).jar output/gluten-spark3.5_2.12-paimon-$(GLUTEN_PACKAGE_VERSION).jar
+
+test_spark35_paimon: check_paimon_jdk11
+	./build/mvn -ntp install -pl backends-bolt -am $(BOLT_PAIMON_SPARK35_PROFILES) -DskipTests
+	SPARK_TESTING=true ./build/mvn -ntp test -pl backends-bolt $(BOLT_PAIMON_SPARK35_PROFILES) \
+		-Dsuites=$(BOLT_PAIMON_SPARK35_SUITES) \
+		-DskipTests=false -Dmaven.test.skip=false -Dmaven.test.failure.ignore=false
 
 cpp-test-release: release-with-tests
 	cd $(BUILD_DIR)/Release && ctest --timeout 7200 -j $(NUM_THREADS) --output-on-failure -V

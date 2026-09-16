@@ -22,6 +22,7 @@
 #include "TypeUtils.h"
 #include "VariantToVectorConverter.h"
 #include "bolt/connectors/hive/HiveDataSink.h"
+#include "bolt/connectors/paimon/PaimonTableHandle.h"
 #include "bolt/exec/TableWriter.h"
 #include "bolt/type/Type.h"
 #include "operators/plannodes/RowVectorStream.h"
@@ -33,6 +34,8 @@
 #include "bolt/shuffle/sparksql/ShuffleReaderNode.h"
 #include "bolt/shuffle/sparksql/ShuffleWriterNode.h"
 #include "compute/BoltRuntime.h"
+#include "compute/paimon/PaimonConnectorUtils.h"
+#include "compute/paimon/PaimonPlanUtils.h"
 #include "config.pb.h"
 #include "config/BoltConfig.h"
 #include "config/GlutenConfig.h"
@@ -1317,12 +1320,22 @@ core::PlanNodePtr SubstraitToBoltPlanConverter::toBoltPlan(const ::substrait::Re
     splitInfo = splitInfos_[splitInfoIdx_++];
   }
 
+  gluten::PaimonTableEnhancement paimonParameters;
+  bool hasPaimonEnhancement = false;
+  if (readRel.has_advanced_extension()) {
+    const auto& ext = readRel.advanced_extension();
+    if (ext.has_enhancement()) {
+      hasPaimonEnhancement = ext.enhancement().UnpackTo(&paimonParameters);
+    }
+  }
+
   // Get output names and types.
   std::vector<std::string> colNameList;
   std::vector<TypePtr> boltTypeList;
   std::vector<ColumnType> columnTypes;
-  // Convert field names into lower case when not case-sensitive.
-  bool asLowerCase = !boltCfg_->get<bool>(kCaseSensitive, false);
+  // Spark has already resolved Paimon attributes. Its schema lookup requires the
+  // physical spelling, including nested fields, even in a case-insensitive session.
+  const bool asLowerCase = !hasPaimonEnhancement && !boltCfg_->get<bool>(kCaseSensitive, false);
   if (readRel.has_base_schema()) {
     const auto& baseSchema = readRel.base_schema();
     colNameList.reserve(baseSchema.names().size());
@@ -1338,18 +1351,23 @@ core::PlanNodePtr SubstraitToBoltPlanConverter::toBoltPlan(const ::substrait::Re
   }
 
   std::unordered_map<std::string, std::string> tableParameters;
-  if (readRel.has_advanced_extension()) {
-    const auto& ext = readRel.advanced_extension();
-    if (ext.has_enhancement()) {
-      gluten::PaimonTableEnhancement paimonParameters;
-      if (ext.enhancement().UnpackTo(&paimonParameters)) {
-        for (const auto& item : *(paimonParameters.mutable_table_properties())) {
-          tableParameters.emplace(item.first, item.second);
-        }
-      }
+  if (hasPaimonEnhancement) {
+    for (const auto& item : paimonParameters.table_properties()) {
+      tableParameters.emplace(item.first, item.second);
     }
+    // Only the plan enhancement can supply this reserved property. Table options
+    // cannot override the schema selected by the JVM planner.
+    tableParameters.erase(paimon::kReadTableSchema);
+    if (!paimonParameters.table_schema_json().empty()) {
+      tableParameters.emplace(paimon::kReadTableSchema, paimonParameters.table_schema_json());
+    }
+  }
+  if (readRel.has_advanced_extension()) {
     std::ostringstream paramstream;
     for (const auto& item : tableParameters) {
+      if (item.first == paimon::kReadTableSchema) {
+        continue;
+      }
       paramstream << "[" << item.first << "=" << item.second << "];";
     }
     LOG(INFO) << "Adding table parameters: " << paramstream.str();
@@ -1367,23 +1385,49 @@ core::PlanNodePtr SubstraitToBoltPlanConverter::toBoltPlan(const ::substrait::Re
 
   std::shared_ptr<connector::ConnectorTableHandle> tableHandle;
   auto remainingFilter = readRel.has_filter() ? exprConverter_->toBoltExpr(readRel.filter(), baseSchema) : nullptr;
-  auto connectorId = kHiveConnectorId;
-  if (useCudfTableHandle(splitInfos_) && boltCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
-      boltCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
-#ifdef GLUTEN_ENABLE_GPU
-    connectorId = kCudfHiveConnectorId;
-#endif
-  }
-  bytedance::bolt::connector::hive::SubfieldFilters subfieldFilters;
-  tableHandle = std::make_shared<connector::hive::HiveTableHandle>(
-      connectorId,
-      "hive_table",
-      filterPushdownEnabled,
-      std::move(subfieldFilters),
-      remainingFilter,
-      tableSchema,
-      tableParameters);
 
+  auto paimonSplitInfo = std::dynamic_pointer_cast<paimon::PaimonSplitInfo>(splitInfo);
+  if (hasPaimonEnhancement && !paimonSplitInfo && splitInfo->paths.empty()) {
+    // Storage-partition joins retain empty task partitions to align both sides.
+    // With no LocalFiles items, the enhancement is their only connector marker.
+    paimonSplitInfo = std::make_shared<paimon::PaimonSplitInfo>(*splitInfo);
+    paimonSplitInfo->mode = paimon::PaimonSplitMode::kSerialized;
+    splitInfo = paimonSplitInfo;
+  }
+  const bool isSerializedPaimon =
+      paimonSplitInfo != nullptr && paimonSplitInfo->mode == paimon::PaimonSplitMode::kSerialized;
+
+  if (hasPaimonEnhancement && !validationMode_ && !readRel.has_virtual_table()) {
+    BOLT_CHECK(isSerializedPaimon, "Paimon table enhancement requires serialized Paimon splits");
+  }
+  // Validation has no split payload. Use the same connector handles as execution
+  // based on the enhancement emitted by BoltPaimonScanTransformer.
+  const bool isPaimonScan = isSerializedPaimon || (validationMode_ && hasPaimonEnhancement);
+  if (isPaimonScan) {
+    BOLT_CHECK(hasPaimonEnhancement, "Serialized Paimon scan requires Paimon table enhancement");
+    const auto& tablePath = paimonParameters.table_path();
+    BOLT_CHECK(!tablePath.empty(), "Serialized Paimon scan requires non-empty table path");
+    tableHandle = std::make_shared<bytedance::bolt::connector::paimon::PaimonTableHandle>(
+        kPaimonConnectorId, tablePath, tablePath, tableParameters, remainingFilter);
+  } else {
+    // Use Hive connector
+    auto connectorId = kHiveConnectorId;
+    if (useCudfTableHandle(splitInfos_) && boltCfg_->get<bool>(kCudfEnableTableScan, kCudfEnableTableScanDefault) &&
+        boltCfg_->get<bool>(kCudfEnabled, kCudfEnabledDefault)) {
+#ifdef GLUTEN_ENABLE_GPU
+      connectorId = kCudfHiveConnectorId;
+#endif
+    }
+    bytedance::bolt::connector::hive::SubfieldFilters subfieldFilters;
+    tableHandle = std::make_shared<connector::hive::HiveTableHandle>(
+        connectorId,
+        "hive_table",
+        filterPushdownEnabled,
+        std::move(subfieldFilters),
+        remainingFilter,
+        tableSchema,
+        tableParameters);
+  }
   // Get assignments and out names.
   std::vector<std::string> outNames;
   outNames.reserve(colNameList.size());
@@ -1392,9 +1436,14 @@ core::PlanNodePtr SubstraitToBoltPlanConverter::toBoltPlan(const ::substrait::Re
   ColumnHandleMap assignments;
   for (int idx = 0; idx < colNameList.size(); idx++) {
     auto outName = SubstraitParser::makeNodeName(planNodeId_, idx);
-    auto columnType = columnTypes[idx];
-    assignments[outName] = std::make_shared<connector::hive::HiveColumnHandle>(
-        colNameList[idx], columnType, boltTypeList[idx], boltTypeList[idx]);
+    if (isPaimonScan) {
+      assignments[outName] =
+          std::make_shared<connector::paimon::PaimonColumnHandle>(colNameList[idx], boltTypeList[idx]);
+    } else {
+      auto columnType = columnTypes[idx];
+      assignments[outName] = std::make_shared<connector::hive::HiveColumnHandle>(
+          colNameList[idx], columnType, boltTypeList[idx], boltTypeList[idx]);
+    }
     outNames.emplace_back(outName);
   }
   auto outputType = ROW(std::move(outNames), std::move(boltTypeList));

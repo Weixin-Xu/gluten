@@ -20,10 +20,27 @@
 namespace gluten::paimon {
 
 std::shared_ptr<PaimonSplitInfo> PaimonPlanUtils::parsePaimonSplitInfo(
-    substrait::ReadRel_LocalFiles_FileOrFiles file,
+    const substrait::ReadRel_LocalFiles_FileOrFiles& file,
     std::shared_ptr<SplitInfo> splitInfo) {
   BOLT_CHECK(file.has_paimon(), "LocalFiles_FileOrFiles must have paimon read options if parsePaimonSplit is called");
   const auto paimonReadOption = file.paimon();
+  auto existing = std::dynamic_pointer_cast<PaimonSplitInfo>(splitInfo);
+
+  if (!existing) {
+    existing = std::make_shared<PaimonSplitInfo>(*splitInfo);
+  }
+
+  const auto mode =
+      paimonReadOption.serialized_split().empty() ? PaimonSplitMode::kLegacy : PaimonSplitMode::kSerialized;
+  BOLT_CHECK(
+      existing->mode == PaimonSplitMode::kUnset || existing->mode == mode,
+      "Paimon scan cannot mix serialized and legacy splits");
+  existing->mode = mode;
+
+  if (mode == PaimonSplitMode::kSerialized) {
+    existing->serializedSplits.push_back(paimonReadOption.serialized_split());
+    return existing;
+  }
 
   auto bucket = paimonReadOption.bucket();
   auto firstRowId = paimonReadOption.first_row_id();
@@ -53,14 +70,21 @@ std::shared_ptr<PaimonSplitInfo> PaimonPlanUtils::parsePaimonSplitInfo(
   const auto& path = file.uri_file();
   auto fileMeta = PaimonSplitInfo::FileMeta{
       format, bucket, firstRowId, maxSequenceNumber, splitGroup, useHiveSplit, std::move(primaryKeys), rawConvertible};
-  auto existing = std::dynamic_pointer_cast<PaimonSplitInfo>(splitInfo);
-
-  if (!existing) {
-    existing = std::make_shared<PaimonSplitInfo>(*splitInfo);
-  }
 
   existing->metaByPath_[path] = fileMeta;
+
   return existing;
+}
+
+void PaimonPlanUtils::validate(const PaimonSplitInfo& splitInfo, size_t fileCount) {
+  if (splitInfo.mode != PaimonSplitMode::kSerialized) {
+    return;
+  }
+
+  BOLT_CHECK(splitInfo.serializedSplits.size() == fileCount, "Serialized Paimon split count must match file count");
+  for (const auto& serializedSplit : splitInfo.serializedSplits) {
+    BOLT_CHECK(!serializedSplit.empty(), "Serialized Paimon split payload must not be empty");
+  }
 }
 
 } // namespace gluten::paimon

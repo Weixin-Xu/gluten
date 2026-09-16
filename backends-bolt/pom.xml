@@ -225,6 +225,8 @@
           <include>libgluten.*</include>
           <include>libbolt_backend.*</include>
           <include>libglutenlibloader.*</include>
+          <include>libgflags_nothreads.*</include>
+          <include>libglog.*</include>
         </includes>
       </resource>
     </resources>
@@ -266,6 +268,7 @@
           <systemProperties>
             <bolt.udf.lib.path>${cpp.build.dir}/Release/bolt/udf/examples/libmyudf.so,${cpp.build.dir}/Release/bolt/udf/examples/libmyudaf.so</bolt.udf.lib.path>
             <bolt.native.loader.path>${bolt.native.loader.path}</bolt.native.loader.path>
+            <gluten.paimon.regenerateSplitFixture>${gluten.paimon.regenerateSplitFixture}</gluten.paimon.regenerateSplitFixture>
           </systemProperties>
         </configuration>
       </plugin>

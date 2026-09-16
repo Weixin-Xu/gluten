@@ -215,7 +215,17 @@ object BoltConfig extends ConfigRegistry {
     SPARK_HADOOP_PARQUET_ENCRYPTION_CACHE_LIFETIME_SECONDS,
     SPARK_HADOOP_PARQUET_ENCRYPTION_KMS_MAX_RETRY_TIMES,
     SPARK_HADOOP_PARQUET_ENCRYPTION_KMS_INSTANCE_VERSION,
-    SPARK_HADOOP_PARQUET_ENCRYPTION_KMS_CLIENT_CLASS
+    SPARK_HADOOP_PARQUET_ENCRYPTION_KMS_CLIENT_CLASS,
+    "spark.gluten.paimon.read.batch-size",
+    "spark.gluten.paimon.read.multi-thread-row-to-batch",
+    "spark.gluten.paimon.read.row-to-batch-thread-num",
+    "spark.gluten.paimon.read.prefetch-enabled",
+    "spark.gluten.paimon.read.prefetch-batch-count",
+    "spark.gluten.paimon.read.prefetch-max-parallel",
+    "spark.gluten.paimon.read.predicate-filter-enabled",
+    "spark.gluten.paimon.io.natural-read-size",
+    "spark.gluten.paimon.io.coalesce-reads",
+    "spark.gluten.paimon.read.timestamp-unit"
   )
 
   lazy val EXTRA_NATIVE_BACKEND_CONF_KEYS: Set[String] = Set(

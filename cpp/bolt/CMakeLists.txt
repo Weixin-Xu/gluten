@@ -124,6 +124,7 @@ set(BOLT_SRCS
     compute/TaskStatusListener.cc
     compute/WholeStageResultIterator.cc
     # compute/iceberg/IcebergPlanConverter.cc
+    compute/paimon/PaimonConnectorUtils.cc
     compute/paimon/PaimonPlanUtils.cc
     jni/BoltInputIterator.cc
     jni/JniFileSystem.cc
@@ -201,6 +202,13 @@ if(BUILD_STATIC)
   add_library(${PROJECT_NAME}_static STATIC ${BOLT_SRCS})
 endif()
 
+if(ENABLE_HDFS)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_HDFS)
+  if(BUILD_STATIC)
+    target_compile_definitions(${PROJECT_NAME}_static PRIVATE ENABLE_HDFS)
+  endif()
+endif()
+
 get_target_property(target_type ${PROJECT_NAME} TYPE)
 
 if(${target_type} STREQUAL "SHARED_LIBRARY" AND NOT CMAKE_SYSTEM_NAME MATCHES
@@ -261,6 +269,21 @@ endif()
 find_package(bolt CONFIG REQUIRED)
 find_package(xxHash CONFIG REQUIRED)
 find_package(libbacktrace REQUIRED CONFIG)
+find_package(Paimon CONFIG REQUIRED)
+
+set(PAIMON_AVRO_PLUGIN_ARCHIVE_TARGETS
+    ${paimon-cpp_Paimon_format_avro_LIBRARIES_TARGETS})
+if(NOT PAIMON_AVRO_PLUGIN_ARCHIVE_TARGETS)
+  message(FATAL_ERROR "Paimon Avro plugin archive targets are unavailable")
+endif()
+foreach(PAIMON_PLUGIN_ARCHIVE_TARGET IN LISTS PAIMON_AVRO_PLUGIN_ARCHIVE_TARGETS)
+  get_target_property(PAIMON_PLUGIN_ARCHIVE_TYPE
+                      ${PAIMON_PLUGIN_ARCHIVE_TARGET} TYPE)
+  if(NOT PAIMON_PLUGIN_ARCHIVE_TYPE STREQUAL "STATIC_LIBRARY")
+    message(FATAL_ERROR
+            "${PAIMON_PLUGIN_ARCHIVE_TARGET} is not a static archive target")
+  endif()
+endforeach()
 
 set(GLUTEN_BOLT_INCLUDE_DIRS ${bolt_INCLUDE_DIRS})
 foreach(BOLT_INCLUDE_DIR IN LISTS bolt_INCLUDE_DIRS)
@@ -268,11 +291,6 @@ foreach(BOLT_INCLUDE_DIR IN LISTS bolt_INCLUDE_DIRS)
     list(APPEND GLUTEN_BOLT_INCLUDE_DIRS "${BOLT_INCLUDE_DIR}/bolt")
   endif()
 endforeach()
-
-string(TOUPPER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_UPPER)
-list(GET gflags_LIB_DIRS_${BUILD_TYPE_UPPER} 0 GFLAGS_LIB_DIR)
-list(GET gflags_LIBS_${BUILD_TYPE_UPPER} 0 GFLAGS_LIB_NAME)
-set(BOLT_GFLAGS_LIB "${GFLAGS_LIB_DIR}/lib${GFLAGS_LIB_NAME}.a")
 
 # Note: jemalloc is used in runtime instead of compile time.
 # if(ENABLE_JEMALLOC_STATS) find_package(jemalloc REQUIRED CONFIG) # TODO
@@ -289,9 +307,11 @@ target_link_libraries(
          gfx::timsort
          libbacktrace::libbacktrace
          folly::folly
-         "-Wl,--whole-archive"
-         "${BOLT_GFLAGS_LIB}"
-         "-Wl,--no-whole-archive")
+         gflags::gflags
+         Paimon::core
+         "$<LINK_LIBRARY:WHOLE_ARCHIVE,${PAIMON_AVRO_PLUGIN_ARCHIVE_TARGETS}>"
+         Paimon::libavrocpp
+         Paimon::tbb)
 target_include_directories(${PROJECT_NAME} PUBLIC gfx::timsort
                                                   ${GLUTEN_BOLT_INCLUDE_DIRS})
 
@@ -308,9 +328,11 @@ if(BUILD_STATIC)
            gfx::timsort
            libbacktrace::libbacktrace
            folly::folly
-           "-Wl,--whole-archive"
-           "${BOLT_GFLAGS_LIB}"
-           "-Wl,--no-whole-archive")
+           gflags::gflags
+           Paimon::core
+           "$<LINK_LIBRARY:WHOLE_ARCHIVE,${PAIMON_AVRO_PLUGIN_ARCHIVE_TARGETS}>"
+           Paimon::libavrocpp
+           Paimon::tbb)
   target_include_directories(${PROJECT_NAME}_static
                              PUBLIC ${GLUTEN_BOLT_INCLUDE_DIRS})
 

@@ -29,6 +29,7 @@
 #include "bolt/exec/PlanNodeStats.h"
 #include "bolt/shuffle/sparksql/ShuffleReaderNode.h"
 #include "bolt/shuffle/sparksql/ShuffleWriterNode.h"
+#include "compute/paimon/PaimonConnectorUtils.h"
 #include "compute/paimon/PaimonPlanUtils.h"
 #include "config/BoltConfig.h"
 #include "connectors/hive/PaimonConnectorSplit.h"
@@ -199,6 +200,16 @@ void WholeStageResultIterator::initTask() {
       {"spark_partition_id", std::to_string(taskInfo_.partitionId)}};
 
   for (const auto& scanInfo : scanInfos_) {
+    if (auto paimonSplits = paimon::tryMakeSerializedConnectorSplits(scanInfo)) {
+      std::vector<bolt::exec::Split> scanSplits;
+      scanSplits.reserve(paimonSplits->size());
+      for (auto& split : *paimonSplits) {
+        scanSplits.emplace_back(std::move(split), -1 /* groupId */);
+      }
+      splits_.emplace_back(std::move(scanSplits));
+      continue;
+    }
+
     // Get the information for TableScan.
     // Partition index in scan info is not used.
     const auto& paths = scanInfo->paths;
@@ -356,6 +367,7 @@ std::mutex WholeStageResultIterator::mutex_;
 std::shared_ptr<bolt::core::QueryCtx> WholeStageResultIterator::createNewBoltQueryCtx(bool isMultiThreaded) {
   std::unordered_map<std::string, std::shared_ptr<bolt::config::ConfigBase>> connectorConfigs;
   connectorConfigs[kHiveConnectorId] = createConnectorConfig();
+  connectorConfigs[kPaimonConnectorId] = paimon::makeConnectorConfig(*boltCfg_);
 
   memory::sparksql::BoltMemoryPoolPtr boltPool;
   if (gluten::BoltGlutenMemoryManager::enabled()) {

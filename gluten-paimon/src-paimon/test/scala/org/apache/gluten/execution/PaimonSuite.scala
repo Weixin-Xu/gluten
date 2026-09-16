@@ -17,11 +17,17 @@
 package org.apache.gluten.execution
 
 import org.apache.spark.SparkConf
+import org.apache.spark.sql.DataFrame
 
 abstract class PaimonSuite extends WholeStageTransformerSuite {
   protected val rootPath: String = getClass.getResource("/").getPath
   override protected val resourcePath: String = "/tpch-data-parquet"
   override protected val fileFormat: String = "parquet"
+
+  protected def fileFormatsToTest: Seq[String] = Seq("parquet", "orc")
+
+  protected def checkPaimonScan(df: DataFrame): Unit =
+    checkGlutenPlan[PaimonScanTransformer](df)
 
   override protected def sparkConf: SparkConf = {
     super.sparkConf
@@ -39,7 +45,7 @@ abstract class PaimonSuite extends WholeStageTransformerSuite {
   }
 
   test("paimon transformer exists") {
-    Seq("parquet", "orc").foreach {
+    fileFormatsToTest.foreach {
       format =>
         withTable(s"paimon_${format}_tbl") {
           sql(s"DROP TABLE IF EXISTS paimon_${format}_tbl")
@@ -50,65 +56,62 @@ abstract class PaimonSuite extends WholeStageTransformerSuite {
           runQueryAndCompare(s"""
                                 |SELECT * FROM paimon_${format}_tbl;
                                 |""".stripMargin) {
-            checkGlutenPlan[PaimonScanTransformer]
+            checkPaimonScan
           }
         }
     }
   }
 
   test("paimon partitioned table") {
-    withTable("paimon_tbl") {
-      sql("DROP TABLE IF EXISTS paimon_tbl")
-      sql(
-        "CREATE TABLE paimon_tbl (id INT, p1 STRING, p2 STRING) USING paimon PARTITIONED BY (p1, p2)")
-      sql("INSERT INTO paimon_tbl VALUES (1, '1', '1'), (2, '1', '2')")
-      runQueryAndCompare("""
-                           |SELECT p1 FROM paimon_tbl WHERE p1 = '1' ORDER BY id;
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
-      runQueryAndCompare("""
-                           |SELECT p2 FROM paimon_tbl WHERE p1 = '1' ORDER BY id;
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
-      runQueryAndCompare("""
-                           |SELECT p1 FROM paimon_tbl WHERE p2 = '1';
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
-      runQueryAndCompare("""
-                           |SELECT p2 FROM paimon_tbl WHERE p2 = '1';
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
-      runQueryAndCompare("""
-                           |SELECT id, p2 FROM paimon_tbl WHERE p1 = '1' and p2 = '2';
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
-      runQueryAndCompare("""
-                           |SELECT id FROM paimon_tbl ORDER BY id;
-                           |""".stripMargin) {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
+    fileFormatsToTest.foreach {
+      format =>
+        val table = s"paimon_${format}_partitioned_tbl"
+        withTable(table) {
+          sql(s"DROP TABLE IF EXISTS $table")
+          sql(s"CREATE TABLE $table (id INT, p1 STRING, p2 STRING) USING paimon " +
+            s"PARTITIONED BY (p1, p2) TBLPROPERTIES ('file.format'='$format')")
+          sql(s"INSERT INTO $table VALUES (1, '1', '1'), (2, '1', '2')")
+          runQueryAndCompare(s"SELECT p1 FROM $table WHERE p1 = '1' ORDER BY id") {
+            checkPaimonScan
+          }
+          runQueryAndCompare(s"SELECT p2 FROM $table WHERE p1 = '1' ORDER BY id") {
+            checkPaimonScan
+          }
+          runQueryAndCompare(s"SELECT p1 FROM $table WHERE p2 = '1'") {
+            checkPaimonScan
+          }
+          runQueryAndCompare(s"SELECT p2 FROM $table WHERE p2 = '1'") {
+            checkPaimonScan
+          }
+          runQueryAndCompare(s"SELECT id, p2 FROM $table WHERE p1 = '1' and p2 = '2'") {
+            checkPaimonScan
+          }
+          runQueryAndCompare(s"SELECT id FROM $table ORDER BY id") {
+            checkPaimonScan
+          }
+        }
     }
   }
 
   test("paimon transformer exists with bucket table") {
-    withTable(s"paimon_tbl") {
-      sql(s"""
-             |CREATE TABLE paimon_tbl (id INT, name STRING)
-             |USING paimon
-             |TBLPROPERTIES (
-             | 'bucket' = '1',
-             | 'bucket-key' = 'id'
-             |)
-             |""".stripMargin)
-      sql(s"INSERT INTO paimon_tbl VALUES (1, 'Bob'), (2, 'Blue'), (3, 'Mike')")
-      runQueryAndCompare("SELECT * FROM paimon_tbl") {
-        checkGlutenPlan[PaimonScanTransformer]
-      }
+    fileFormatsToTest.foreach {
+      format =>
+        val table = s"paimon_${format}_bucket_tbl"
+        withTable(table) {
+          sql(s"""
+                 |CREATE TABLE $table (id INT, name STRING)
+                 |USING paimon
+                 |TBLPROPERTIES (
+                 | 'file.format' = '$format',
+                 | 'bucket' = '1',
+                 | 'bucket-key' = 'id'
+                 |)
+                 |""".stripMargin)
+          sql(s"INSERT INTO $table VALUES (1, 'Bob'), (2, 'Blue'), (3, 'Mike')")
+          runQueryAndCompare(s"SELECT * FROM $table") {
+            checkPaimonScan
+          }
+        }
     }
   }
 }

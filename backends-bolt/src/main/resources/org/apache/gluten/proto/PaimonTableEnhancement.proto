@@ -8,4 +8,8 @@ option java_multiple_files = true;
 
 message PaimonTableEnhancement {
   map<string, string> table_properties = 1;
+  string table_path = 2;
+  // Full TableSchema JSON bound to this scan, including schema and field IDs.
+  // This is independent of the projected Substrait read schema.
+  string table_schema_json = 3;
 }

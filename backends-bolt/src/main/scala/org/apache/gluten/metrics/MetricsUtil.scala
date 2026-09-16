@@ -51,7 +51,7 @@ object MetricsUtil extends Logging {
       .map(_.asLong())
       .getOrElse(0L)
 
-  private def operatorMetricFromJson(node: JsonNode): OperatorMetrics = {
+  private[metrics] def operatorMetricFromJson(node: JsonNode): OperatorMetrics = {
     val metrics = new OperatorMetrics()
     metrics.inputRows = value(node, "inputRows")
     metrics.inputVectors = value(node, "inputVectors")
@@ -88,7 +88,12 @@ object MetricsUtil extends Logging {
     metrics.remainingFilterTime = customMetricSum(node, "totalRemainingFilterTime")
     metrics.ioWaitTime = customMetricSum(node, "ioWaitWallNanos")
     metrics.storageReadBytes = customMetricSum(node, "storageReadBytes")
-    metrics.storageReads = customMetricCount(node, "storageReadBytes")
+    metrics.storageReads =
+      if (node.path("customStats").has("numStorageRead")) {
+        customMetricSum(node, "numStorageRead")
+      } else {
+        customMetricCount(node, "storageReadBytes")
+      }
     metrics.localReadBytes = customMetricSum(node, "localReadBytes")
     metrics.ramReadBytes = customMetricSum(node, "ramReadBytes")
     metrics.preloadSplits = customMetricSum(node, "readyPreloadedSplits")

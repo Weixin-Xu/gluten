@@ -301,6 +301,157 @@ if(BUILD_BOLT)
   # Flat drop location kept for developers and docs; staged here at build time
   # so the shared-library flow never needs `cmake --install`.
   set(BOLT_NATIVE_RELEASES_DIR "${CMAKE_SOURCE_DIR}/build/releases")
+  function(GET_BOLT_RUNTIME_LOCATION RUNTIME_TARGET OUTPUT_VARIABLE)
+    string(TOUPPER "${CMAKE_BUILD_TYPE}" BOLT_BUILD_TYPE_UPPER)
+    get_target_property(
+      BOLT_RUNTIME_LOCATION "${RUNTIME_TARGET}"
+      "IMPORTED_LOCATION_${BOLT_BUILD_TYPE_UPPER}")
+    if(NOT BOLT_RUNTIME_LOCATION)
+      get_target_property(BOLT_RUNTIME_LOCATION "${RUNTIME_TARGET}"
+                          IMPORTED_LOCATION)
+    endif()
+    if(NOT BOLT_RUNTIME_LOCATION)
+      message(
+        FATAL_ERROR
+          "Bolt native packaging cannot locate runtime target ${RUNTIME_TARGET}"
+      )
+    endif()
+    set("${OUTPUT_VARIABLE}"
+        "${BOLT_RUNTIME_LOCATION}"
+        PARENT_SCOPE)
+  endfunction()
+
+  function(GET_BOLT_RUNTIME_LINKAGE RUNTIME_TARGET OUTPUT_VARIABLE)
+    get_target_property(BOLT_RUNTIME_TYPE "${RUNTIME_TARGET}" TYPE)
+    if(BOLT_RUNTIME_TYPE STREQUAL "STATIC_LIBRARY")
+      set(BOLT_RUNTIME_LINKAGE STATIC)
+    elseif(BOLT_RUNTIME_TYPE STREQUAL "SHARED_LIBRARY"
+           OR BOLT_RUNTIME_TYPE STREQUAL "MODULE_LIBRARY")
+      set(BOLT_RUNTIME_LINKAGE SHARED)
+    elseif(BOLT_RUNTIME_TYPE STREQUAL "UNKNOWN_LIBRARY")
+      get_bolt_runtime_location("${RUNTIME_TARGET}" BOLT_RUNTIME_LOCATION)
+      if(BOLT_RUNTIME_LOCATION MATCHES "\\.(a|lib)$")
+        set(BOLT_RUNTIME_LINKAGE STATIC)
+      else()
+        set(BOLT_RUNTIME_LINKAGE SHARED)
+      endif()
+    else()
+      message(
+        FATAL_ERROR
+          "Bolt native packaging cannot classify target ${RUNTIME_TARGET} (${BOLT_RUNTIME_TYPE})"
+      )
+    endif()
+    set("${OUTPUT_VARIABLE}"
+        "${BOLT_RUNTIME_LINKAGE}"
+        PARENT_SCOPE)
+  endfunction()
+
+  function(GET_BOLT_RUNTIME_SONAME RUNTIME_TARGET OUTPUT_VARIABLE)
+    get_bolt_runtime_location("${RUNTIME_TARGET}" BOLT_RUNTIME_LOCATION)
+
+    if(IS_SYMLINK "${BOLT_RUNTIME_LOCATION}")
+      file(READ_SYMLINK "${BOLT_RUNTIME_LOCATION}" BOLT_RUNTIME_SONAME_LINK)
+      get_filename_component(BOLT_RUNTIME_SONAME
+                             "${BOLT_RUNTIME_SONAME_LINK}" NAME)
+    else()
+      get_filename_component(BOLT_RUNTIME_SONAME "${BOLT_RUNTIME_LOCATION}"
+                             NAME)
+    endif()
+    set("${OUTPUT_VARIABLE}"
+        "${BOLT_RUNTIME_SONAME}"
+        PARENT_SCOPE)
+  endfunction()
+
+  if(gflags_LIBRARIES_TARGETS AND glog_LIBRARIES_TARGETS)
+    list(LENGTH gflags_LIBRARIES_TARGETS BOLT_GFLAGS_RUNTIME_TARGET_COUNT)
+    list(LENGTH glog_LIBRARIES_TARGETS BOLT_GLOG_RUNTIME_TARGET_COUNT)
+    if(NOT BOLT_GFLAGS_RUNTIME_TARGET_COUNT EQUAL 1
+       OR NOT BOLT_GLOG_RUNTIME_TARGET_COUNT EQUAL 1)
+      message(
+        FATAL_ERROR
+          "Bolt native packaging requires exactly one gflags and one glog runtime target"
+      )
+    endif()
+    list(GET gflags_LIBRARIES_TARGETS 0 BOLT_GFLAGS_RUNTIME_TARGET)
+    list(GET glog_LIBRARIES_TARGETS 0 BOLT_GLOG_RUNTIME_TARGET)
+  elseif(gflags_LIBRARIES_TARGETS OR glog_LIBRARIES_TARGETS)
+    message(
+      FATAL_ERROR
+        "Bolt native packaging found an incomplete Conan gflags/glog provider"
+    )
+  else()
+    if(NOT TARGET google::glog)
+      message(FATAL_ERROR "Bolt native packaging cannot find google::glog")
+    endif()
+    set(BOLT_GLOG_RUNTIME_TARGET google::glog)
+    get_bolt_runtime_linkage("${BOLT_GLOG_RUNTIME_TARGET}"
+                             BOLT_GLOG_RUNTIME_LINKAGE)
+    if(BOLT_GLOG_RUNTIME_LINKAGE STREQUAL "SHARED")
+      set(BOLT_GFLAGS_PROVIDER_CANDIDATES gflags::gflags_shared
+                                          gflags_shared)
+    else()
+      set(BOLT_GFLAGS_PROVIDER_CANDIDATES gflags::gflags_static
+                                          gflags_static)
+    endif()
+    foreach(BOLT_GFLAGS_PROVIDER_CANDIDATE IN LISTS
+            BOLT_GFLAGS_PROVIDER_CANDIDATES)
+      if(TARGET "${BOLT_GFLAGS_PROVIDER_CANDIDATE}")
+        set(BOLT_GFLAGS_RUNTIME_TARGET
+            "${BOLT_GFLAGS_PROVIDER_CANDIDATE}")
+        break()
+      endif()
+    endforeach()
+    if(NOT BOLT_GFLAGS_RUNTIME_TARGET)
+      message(
+        FATAL_ERROR
+          "Bolt native packaging cannot find the ${BOLT_GLOG_RUNTIME_LINKAGE} gflags provider"
+      )
+    endif()
+  endif()
+
+  get_bolt_runtime_linkage("${BOLT_GFLAGS_RUNTIME_TARGET}"
+                           BOLT_GFLAGS_RUNTIME_LINKAGE)
+  get_bolt_runtime_linkage("${BOLT_GLOG_RUNTIME_TARGET}"
+                           BOLT_GLOG_RUNTIME_LINKAGE)
+  if(NOT BOLT_GFLAGS_RUNTIME_LINKAGE STREQUAL BOLT_GLOG_RUNTIME_LINKAGE)
+    message(
+      FATAL_ERROR
+        "Bolt native packaging requires matching gflags/glog linkage, got ${BOLT_GFLAGS_RUNTIME_LINKAGE}/${BOLT_GLOG_RUNTIME_LINKAGE}"
+    )
+  endif()
+
+  set(BOLT_GFLAGS_CANONICAL_NAME
+      "${CMAKE_SHARED_LIBRARY_PREFIX}gflags_nothreads${CMAKE_SHARED_LIBRARY_SUFFIX}"
+  )
+  set(BOLT_GLOG_CANONICAL_NAME
+      "${CMAKE_SHARED_LIBRARY_PREFIX}glog${CMAKE_SHARED_LIBRARY_SUFFIX}")
+  if(BOLT_GFLAGS_RUNTIME_LINKAGE STREQUAL "SHARED")
+    get_bolt_runtime_soname("${BOLT_GFLAGS_RUNTIME_TARGET}"
+                            BOLT_GFLAGS_RUNTIME_SONAME)
+    get_bolt_runtime_soname("${BOLT_GLOG_RUNTIME_TARGET}"
+                            BOLT_GLOG_RUNTIME_SONAME)
+    set(
+      BOLT_FLAG_REGISTRY_PACKAGE_COMMANDS
+      COMMAND
+        ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:${BOLT_GFLAGS_RUNTIME_TARGET}>"
+        "${BOLT_NATIVE_PACKAGE_DIR}/${BOLT_GFLAGS_CANONICAL_NAME}"
+      COMMAND
+        ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${BOLT_GLOG_RUNTIME_TARGET}>"
+        "${BOLT_NATIVE_PACKAGE_DIR}/${BOLT_GLOG_CANONICAL_NAME}"
+      COMMAND
+        ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:${BOLT_GFLAGS_RUNTIME_TARGET}>"
+        "${BOLT_NATIVE_PACKAGE_DIR}/${BOLT_GFLAGS_RUNTIME_SONAME}"
+      COMMAND
+        ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${BOLT_GLOG_RUNTIME_TARGET}>"
+        "${BOLT_NATIVE_PACKAGE_DIR}/${BOLT_GLOG_RUNTIME_SONAME}")
+  else()
+    message(
+      FATAL_ERROR
+        "Bolt multi-DSO packaging requires shared gflags/glog to keep a single flag registry"
+    )
+  endif()
   add_custom_target(
     package_bolt_native ALL
     COMMAND ${CMAKE_COMMAND} -E rm -rf "${BOLT_NATIVE_PACKAGE_DIR}"
@@ -318,6 +469,7 @@ if(BUILD_BOLT)
             "${BOLT_NATIVE_RELEASES_DIR}/"
     COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:glutenlibloader>"
             "${BOLT_NATIVE_RELEASES_DIR}/"
+    ${BOLT_FLAG_REGISTRY_PACKAGE_COMMANDS}
     DEPENDS gluten bolt_backend glutenlibloader
     COMMENT "Staging Bolt native libraries in ${BOLT_NATIVE_PACKAGE_DIR}"
     VERBATIM)

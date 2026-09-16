@@ -224,6 +224,9 @@ message ReadRel {
         bool use_hive_split = 7;
         bool raw_convertible = 8;
         repeated string primary_keys = 9;
+        // Serialized Paimon split from Java DataSplit.serialize()
+        // Used by native Paimon connector to deserialize splits directly
+        bytes serialized_split = 10;
       }
 
       // File reading options

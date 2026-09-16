@@ -19,9 +19,9 @@ package org.apache.gluten.execution
 import org.apache.gluten.backendsapi.BackendsApiManager
 import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.expression.{ConverterUtils, ExpressionConverter}
-import org.apache.gluten.substrait.`type`.ColumnTypeNode
+import org.apache.gluten.substrait.`type`.{ColumnTypeNode, TypeNode}
 import org.apache.gluten.substrait.SubstraitContext
-import org.apache.gluten.substrait.extensions.ExtensionBuilder
+import org.apache.gluten.substrait.extensions.{AdvancedExtensionNode, ExtensionBuilder}
 import org.apache.gluten.substrait.rel.{ReadRelNode, RelBuilder, SplitInfo}
 import org.apache.gluten.substrait.rel.LocalFilesNode.ReadFileFormat
 
@@ -171,9 +171,24 @@ trait BasicScanExecTransformer extends LeafTransformSupport with BaseDataSource 
     }
   }
 
+  def getAdvancedExtension: Option[AdvancedExtensionNode] = {
+    // used by CH backend
+    val mergeTreeFlag = if (this.fileFormat == ReadFileFormat.MergeTreeReadFormat) "1" else "0"
+    val optimization =
+      BackendsApiManager.getTransformerApiInstance.packPBMessage(
+        StringValue.newBuilder.setValue(s"isMergeTree=$mergeTreeFlag\n").build)
+    Some(ExtensionBuilder.makeAdvancedExtension(optimization, null))
+  }
+
+  protected def readRelNames: java.util.List[String] =
+    ConverterUtils.collectAttributeNamesWithoutExprId(output)
+
+  protected def readRelTypeNodes: java.util.List[TypeNode] =
+    ConverterUtils.collectAttributeTypeNodes(output)
+
   override protected def doTransform(context: SubstraitContext): TransformContext = {
-    val typeNodes = ConverterUtils.collectAttributeTypeNodes(output)
-    val nameList = ConverterUtils.collectAttributeNamesWithoutExprId(output)
+    val typeNodes = readRelTypeNodes
+    val nameList = readRelNames
     val columnTypeNodes = output.map(makeColumnTypeNode).asJava
     // Will put all filter expressions into an AND expression
     val exprNode = filterExprs()
@@ -183,21 +198,15 @@ trait BasicScanExecTransformer extends LeafTransformSupport with BaseDataSource 
       .map(_.doTransform(context))
       .orNull
 
-    // used by CH backend
-    val mergeTreeFlag = if (this.fileFormat == ReadFileFormat.MergeTreeReadFormat) "1" else "0"
-    val optimization =
-      BackendsApiManager.getTransformerApiInstance.packPBMessage(
-        StringValue.newBuilder.setValue(s"isMergeTree=$mergeTreeFlag\n").build)
-    val extensionNode = ExtensionBuilder.makeAdvancedExtension(optimization, null)
-
     val readNode = RelBuilder.makeReadRel(
       typeNodes,
       nameList,
       exprNode,
       columnTypeNodes,
-      extensionNode,
+      getAdvancedExtension.getOrElse(ExtensionBuilder.makeAdvancedExtension(null)),
       context,
-      context.nextOperatorId(this.nodeName))
+      context.nextOperatorId(this.nodeName)
+    )
     getInputStats.foreach(
       inputStats => {
         logInfo(s"hit scan inputStats with $inputStats")
