@@ -3,6 +3,9 @@
     extern "C++" {
         *gluten::*;
         *bytedance::bolt::*;
+        # The public MemoryManager::Options default constructor reads these flags.
+        fLB::FLAGS_bolt_enable_memory_usage_track_in_default_memory_pool;
+        fLB::FLAGS_bolt_memory_leak_check_enabled;
     };
 
     Java_org_apache_gluten_*;

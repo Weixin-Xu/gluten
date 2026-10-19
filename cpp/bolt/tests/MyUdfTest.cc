@@ -15,16 +15,17 @@
  * limitations under the License.
  */
 
+#include <gtest/gtest.h>
 #include <vector>
+#include "bolt/common/memory/Memory.h"
+#include "bolt/core/QueryConfig.h"
 #include "bolt/expression/SimpleFunctionRegistry.h"
-#include "bolt/functions/prestosql/tests/utils/FunctionBaseTest.h"
 #include "bolt/parse/TypeResolver.h"
 #include "udf/UdfLoader.h"
 
-using namespace bytedance::bolt::functions::test;
 using namespace bytedance::bolt;
 
-class MyUdfTest : public FunctionBaseTest {
+class MyUdfTest : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
     parse::registerTypeResolver();
