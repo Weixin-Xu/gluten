@@ -1,0 +1,989 @@
+== Physical Plan ==
+BoltColumnarToRow (190)
++- TakeOrderedAndProjectExecTransformer (189)
+   +- ^ ProjectExecTransformer (187)
+      +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (186)
+         :- ^ ProjectExecTransformer (157)
+         :  +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (156)
+         :     :- ^ ProjectExecTransformer (125)
+         :     :  +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (124)
+         :     :     :- ^ ProjectExecTransformer (95)
+         :     :     :  +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (94)
+         :     :     :     :- ^ ShuffledHashJoinExecTransformer Inner BuildLeft (63)
+         :     :     :     :  :- ^ InputIteratorTransformer (34)
+         :     :     :     :  :  +- ColumnarExchange (32)
+         :     :     :     :  :     +- ^ ProjectExecTransformer (30)
+         :     :     :     :  :        +- ^ FilterExecTransformer (29)
+         :     :     :     :  :           +- ^ ProjectExecTransformer (28)
+         :     :     :     :  :              +- ^ RegularHashAggregateExecTransformer (27)
+         :     :     :     :  :                 +- ^ InputIteratorTransformer (26)
+         :     :     :     :  :                    +- ColumnarExchange (24)
+         :     :     :     :  :                       +- ^ ProjectExecTransformer (22)
+         :     :     :     :  :                          +- ^ FlushableHashAggregateExecTransformer (21)
+         :     :     :     :  :                             +- ^ ProjectExecTransformer (20)
+         :     :     :     :  :                                +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (19)
+         :     :     :     :  :                                   :- ^ InputIteratorTransformer (11)
+         :     :     :     :  :                                   :  +- ColumnarExchange (9)
+         :     :     :     :  :                                   :     +- ^ ProjectExecTransformer (7)
+         :     :     :     :  :                                   :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (6)
+         :     :     :     :  :                                   :           :- ^ FilterExecTransformer (2)
+         :     :     :     :  :                                   :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.store_sales (1)
+         :     :     :     :  :                                   :           +- ^ InputIteratorTransformer (5)
+         :     :     :     :  :                                   :              +- ReusedExchange (3)
+         :     :     :     :  :                                   +- ^ InputIteratorTransformer (18)
+         :     :     :     :  :                                      +- ColumnarExchange (16)
+         :     :     :     :  :                                         +- ^ ProjectExecTransformer (14)
+         :     :     :     :  :                                            +- ^ FilterExecTransformer (13)
+         :     :     :     :  :                                               +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.customer (12)
+         :     :     :     :  +- ^ InputIteratorTransformer (62)
+         :     :     :     :     +- ColumnarExchange (60)
+         :     :     :     :        +- ^ ProjectExecTransformer (58)
+         :     :     :     :           +- ^ RegularHashAggregateExecTransformer (57)
+         :     :     :     :              +- ^ InputIteratorTransformer (56)
+         :     :     :     :                 +- ColumnarExchange (54)
+         :     :     :     :                    +- ^ ProjectExecTransformer (52)
+         :     :     :     :                       +- ^ FlushableHashAggregateExecTransformer (51)
+         :     :     :     :                          +- ^ ProjectExecTransformer (50)
+         :     :     :     :                             +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (49)
+         :     :     :     :                                :- ^ InputIteratorTransformer (45)
+         :     :     :     :                                :  +- ColumnarExchange (43)
+         :     :     :     :                                :     +- ^ ProjectExecTransformer (41)
+         :     :     :     :                                :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (40)
+         :     :     :     :                                :           :- ^ FilterExecTransformer (36)
+         :     :     :     :                                :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.store_sales (35)
+         :     :     :     :                                :           +- ^ InputIteratorTransformer (39)
+         :     :     :     :                                :              +- ReusedExchange (37)
+         :     :     :     :                                +- ^ InputIteratorTransformer (48)
+         :     :     :     :                                   +- ReusedExchange (46)
+         :     :     :     +- ^ InputIteratorTransformer (93)
+         :     :     :        +- ColumnarExchange (91)
+         :     :     :           +- ^ ProjectExecTransformer (89)
+         :     :     :              +- ^ FilterExecTransformer (88)
+         :     :     :                 +- ^ ProjectExecTransformer (87)
+         :     :     :                    +- ^ RegularHashAggregateExecTransformer (86)
+         :     :     :                       +- ^ InputIteratorTransformer (85)
+         :     :     :                          +- ColumnarExchange (83)
+         :     :     :                             +- ^ ProjectExecTransformer (81)
+         :     :     :                                +- ^ FlushableHashAggregateExecTransformer (80)
+         :     :     :                                   +- ^ ProjectExecTransformer (79)
+         :     :     :                                      +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (78)
+         :     :     :                                         :- ^ InputIteratorTransformer (74)
+         :     :     :                                         :  +- ColumnarExchange (72)
+         :     :     :                                         :     +- ^ ProjectExecTransformer (70)
+         :     :     :                                         :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (69)
+         :     :     :                                         :           :- ^ FilterExecTransformer (65)
+         :     :     :                                         :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.catalog_sales (64)
+         :     :     :                                         :           +- ^ InputIteratorTransformer (68)
+         :     :     :                                         :              +- ReusedExchange (66)
+         :     :     :                                         +- ^ InputIteratorTransformer (77)
+         :     :     :                                            +- ReusedExchange (75)
+         :     :     +- ^ InputIteratorTransformer (123)
+         :     :        +- ColumnarExchange (121)
+         :     :           +- ^ ProjectExecTransformer (119)
+         :     :              +- ^ RegularHashAggregateExecTransformer (118)
+         :     :                 +- ^ InputIteratorTransformer (117)
+         :     :                    +- ColumnarExchange (115)
+         :     :                       +- ^ ProjectExecTransformer (113)
+         :     :                          +- ^ FlushableHashAggregateExecTransformer (112)
+         :     :                             +- ^ ProjectExecTransformer (111)
+         :     :                                +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (110)
+         :     :                                   :- ^ InputIteratorTransformer (106)
+         :     :                                   :  +- ColumnarExchange (104)
+         :     :                                   :     +- ^ ProjectExecTransformer (102)
+         :     :                                   :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (101)
+         :     :                                   :           :- ^ FilterExecTransformer (97)
+         :     :                                   :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.catalog_sales (96)
+         :     :                                   :           +- ^ InputIteratorTransformer (100)
+         :     :                                   :              +- ReusedExchange (98)
+         :     :                                   +- ^ InputIteratorTransformer (109)
+         :     :                                      +- ReusedExchange (107)
+         :     +- ^ InputIteratorTransformer (155)
+         :        +- ColumnarExchange (153)
+         :           +- ^ ProjectExecTransformer (151)
+         :              +- ^ FilterExecTransformer (150)
+         :                 +- ^ ProjectExecTransformer (149)
+         :                    +- ^ RegularHashAggregateExecTransformer (148)
+         :                       +- ^ InputIteratorTransformer (147)
+         :                          +- ColumnarExchange (145)
+         :                             +- ^ ProjectExecTransformer (143)
+         :                                +- ^ FlushableHashAggregateExecTransformer (142)
+         :                                   +- ^ ProjectExecTransformer (141)
+         :                                      +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (140)
+         :                                         :- ^ InputIteratorTransformer (136)
+         :                                         :  +- ColumnarExchange (134)
+         :                                         :     +- ^ ProjectExecTransformer (132)
+         :                                         :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (131)
+         :                                         :           :- ^ FilterExecTransformer (127)
+         :                                         :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.web_sales (126)
+         :                                         :           +- ^ InputIteratorTransformer (130)
+         :                                         :              +- ReusedExchange (128)
+         :                                         +- ^ InputIteratorTransformer (139)
+         :                                            +- ReusedExchange (137)
+         +- ^ InputIteratorTransformer (185)
+            +- ColumnarExchange (183)
+               +- ^ ProjectExecTransformer (181)
+                  +- ^ RegularHashAggregateExecTransformer (180)
+                     +- ^ InputIteratorTransformer (179)
+                        +- ColumnarExchange (177)
+                           +- ^ ProjectExecTransformer (175)
+                              +- ^ FlushableHashAggregateExecTransformer (174)
+                                 +- ^ ProjectExecTransformer (173)
+                                    +- ^ ShuffledHashJoinExecTransformer Inner BuildRight (172)
+                                       :- ^ InputIteratorTransformer (168)
+                                       :  +- ColumnarExchange (166)
+                                       :     +- ^ ProjectExecTransformer (164)
+                                       :        +- ^ BroadcastHashJoinExecTransformer Inner BuildRight (163)
+                                       :           :- ^ FilterExecTransformer (159)
+                                       :           :  +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.web_sales (158)
+                                       :           +- ^ InputIteratorTransformer (162)
+                                       :              +- ReusedExchange (160)
+                                       +- ^ InputIteratorTransformer (171)
+                                          +- ReusedExchange (169)
+
+
+(1) FileSourceScanExecTransformer parquet spark_catalog.default.store_sales
+Output [6]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, ss_sold_date_sk#6]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(ss_sold_date_sk#6), dynamicpruningexpression(ss_sold_date_sk#6 IN dynamicpruning#7)]
+PushedFilters: [IsNotNull(ss_customer_sk)]
+ReadSchema: struct<ss_customer_sk:int,ss_ext_discount_amt:decimal(7,2),ss_ext_sales_price:decimal(7,2),ss_ext_wholesale_cost:decimal(7,2),ss_ext_list_price:decimal(7,2)>
+
+(2) FilterExecTransformer
+Input [6]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, ss_sold_date_sk#6]
+Arguments: isnotnull(ss_customer_sk#1)
+
+(3) ReusedExchange [Reuses operator id: 194]
+Output [2]: [d_date_sk#8, d_year#9]
+
+(4) InputAdapter
+Input [2]: [d_date_sk#8, d_year#9]
+
+(5) InputIteratorTransformer
+Input [2]: [d_date_sk#8, d_year#9]
+
+(6) BroadcastHashJoinExecTransformer
+Left keys [1]: [ss_sold_date_sk#6]
+Right keys [1]: [d_date_sk#8]
+Join type: Inner
+Join condition: None
+
+(7) ProjectExecTransformer
+Output [7]: [hash(ss_customer_sk#1, 42) AS hash_partition_key#10, ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9]
+Input [8]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, ss_sold_date_sk#6, d_date_sk#8, d_year#9]
+
+(8) WholeStageCodegenTransformer (3)
+Input [7]: [hash_partition_key#10, ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9]
+Arguments: false
+
+(9) ColumnarExchange
+Input [7]: [hash_partition_key#10, ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9]
+Arguments: hashpartitioning(ss_customer_sk#1, 1), ENSURE_REQUIREMENTS, [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9], [plan_id=1], [shuffle_writer_type=hash]
+
+(10) InputAdapter
+Input [6]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9]
+
+(11) InputIteratorTransformer
+Input [6]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9]
+
+(12) FileSourceScanExecTransformer parquet spark_catalog.default.customer
+Output [8]: [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+Batched: true
+Location: InMemoryFileIndex [{warehouse_dir}/customer]
+PushedFilters: [IsNotNull(c_customer_sk), IsNotNull(c_customer_id)]
+ReadSchema: struct<c_customer_sk:int,c_customer_id:string,c_first_name:string,c_last_name:string,c_preferred_cust_flag:string,c_birth_country:string,c_login:string,c_email_address:string>
+
+(13) FilterExecTransformer
+Input [8]: [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+Arguments: (isnotnull(c_customer_sk#11) AND isnotnull(c_customer_id#12))
+
+(14) ProjectExecTransformer
+Output [9]: [hash(c_customer_sk#11, 42) AS hash_partition_key#19, c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+Input [8]: [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+
+(15) WholeStageCodegenTransformer (4)
+Input [9]: [hash_partition_key#19, c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+Arguments: false
+
+(16) ColumnarExchange
+Input [9]: [hash_partition_key#19, c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+Arguments: hashpartitioning(c_customer_sk#11, 1), ENSURE_REQUIREMENTS, [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18], [plan_id=2], [shuffle_writer_type=hash]
+
+(17) InputAdapter
+Input [8]: [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+
+(18) InputIteratorTransformer
+Input [8]: [c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+
+(19) ShuffledHashJoinExecTransformer
+Left keys [1]: [ss_customer_sk#1]
+Right keys [1]: [c_customer_sk#11]
+Join type: Inner
+Join condition: None
+
+(20) ProjectExecTransformer
+Output [9]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, ((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2) AS _pre_1#20]
+Input [14]: [ss_customer_sk#1, ss_ext_discount_amt#2, ss_ext_sales_price#3, ss_ext_wholesale_cost#4, ss_ext_list_price#5, d_year#9, c_customer_sk#11, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18]
+
+(21) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, _pre_1#20]
+Keys [8]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9]
+Functions [1]: [partial_sum(_pre_1#20)]
+Aggregate Attributes [2]: [sum#21, isEmpty#22]
+Results [10]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+
+(22) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, 42) AS hash_partition_key#25, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+Input [10]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+
+(23) WholeStageCodegenTransformer (5)
+Input [11]: [hash_partition_key#25, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+Arguments: false
+
+(24) ColumnarExchange
+Input [11]: [hash_partition_key#25, c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+Arguments: hashpartitioning(c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, 1), ENSURE_REQUIREMENTS, [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24], [plan_id=3], [shuffle_writer_type=hash]
+
+(25) InputAdapter
+Input [10]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+
+(26) InputIteratorTransformer
+Input [10]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+
+(27) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum#23, isEmpty#24]
+Keys [8]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9]
+Functions [1]: [sum(((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2))]
+Aggregate Attributes [1]: [sum(((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2))#26]
+Results [9]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum(((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2))#26]
+
+(28) ProjectExecTransformer
+Output [2]: [c_customer_id#12 AS customer_id#27, sum(((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2))#26 AS year_total#28]
+Input [9]: [c_customer_id#12, c_first_name#13, c_last_name#14, c_preferred_cust_flag#15, c_birth_country#16, c_login#17, c_email_address#18, d_year#9, sum(((((ss_ext_list_price#5 - ss_ext_wholesale_cost#4) - ss_ext_discount_amt#2) + ss_ext_sales_price#3) / 2))#26]
+
+(29) FilterExecTransformer
+Input [2]: [customer_id#27, year_total#28]
+Arguments: (isnotnull(year_total#28) AND (year_total#28 > 0.000000))
+
+(30) ProjectExecTransformer
+Output [3]: [hash(customer_id#27, 42) AS hash_partition_key#29, customer_id#27, year_total#28]
+Input [2]: [customer_id#27, year_total#28]
+
+(31) WholeStageCodegenTransformer (6)
+Input [3]: [hash_partition_key#29, customer_id#27, year_total#28]
+Arguments: false
+
+(32) ColumnarExchange
+Input [3]: [hash_partition_key#29, customer_id#27, year_total#28]
+Arguments: hashpartitioning(customer_id#27, 1), ENSURE_REQUIREMENTS, [customer_id#27, year_total#28], [plan_id=4], [shuffle_writer_type=hash]
+
+(33) InputAdapter
+Input [2]: [customer_id#27, year_total#28]
+
+(34) InputIteratorTransformer
+Input [2]: [customer_id#27, year_total#28]
+
+(35) FileSourceScanExecTransformer parquet spark_catalog.default.store_sales
+Output [6]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, ss_sold_date_sk#35]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(ss_sold_date_sk#35), dynamicpruningexpression(ss_sold_date_sk#35 IN dynamicpruning#36)]
+PushedFilters: [IsNotNull(ss_customer_sk)]
+ReadSchema: struct<ss_customer_sk:int,ss_ext_discount_amt:decimal(7,2),ss_ext_sales_price:decimal(7,2),ss_ext_wholesale_cost:decimal(7,2),ss_ext_list_price:decimal(7,2)>
+
+(36) FilterExecTransformer
+Input [6]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, ss_sold_date_sk#35]
+Arguments: isnotnull(ss_customer_sk#30)
+
+(37) ReusedExchange [Reuses operator id: 198]
+Output [2]: [d_date_sk#37, d_year#38]
+
+(38) InputAdapter
+Input [2]: [d_date_sk#37, d_year#38]
+
+(39) InputIteratorTransformer
+Input [2]: [d_date_sk#37, d_year#38]
+
+(40) BroadcastHashJoinExecTransformer
+Left keys [1]: [ss_sold_date_sk#35]
+Right keys [1]: [d_date_sk#37]
+Join type: Inner
+Join condition: None
+
+(41) ProjectExecTransformer
+Output [7]: [hash(ss_customer_sk#30, 42) AS hash_partition_key#39, ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38]
+Input [8]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, ss_sold_date_sk#35, d_date_sk#37, d_year#38]
+
+(42) WholeStageCodegenTransformer (9)
+Input [7]: [hash_partition_key#39, ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38]
+Arguments: false
+
+(43) ColumnarExchange
+Input [7]: [hash_partition_key#39, ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38]
+Arguments: hashpartitioning(ss_customer_sk#30, 1), ENSURE_REQUIREMENTS, [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38], [plan_id=5], [shuffle_writer_type=hash]
+
+(44) InputAdapter
+Input [6]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38]
+
+(45) InputIteratorTransformer
+Input [6]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38]
+
+(46) ReusedExchange [Reuses operator id: 16]
+Output [8]: [c_customer_sk#40, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47]
+
+(47) InputAdapter
+Input [8]: [c_customer_sk#40, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47]
+
+(48) InputIteratorTransformer
+Input [8]: [c_customer_sk#40, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47]
+
+(49) ShuffledHashJoinExecTransformer
+Left keys [1]: [ss_customer_sk#30]
+Right keys [1]: [c_customer_sk#40]
+Join type: Inner
+Join condition: None
+
+(50) ProjectExecTransformer
+Output [9]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, ((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2) AS _pre_2#48]
+Input [14]: [ss_customer_sk#30, ss_ext_discount_amt#31, ss_ext_sales_price#32, ss_ext_wholesale_cost#33, ss_ext_list_price#34, d_year#38, c_customer_sk#40, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47]
+
+(51) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, _pre_2#48]
+Keys [8]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38]
+Functions [1]: [partial_sum(_pre_2#48)]
+Aggregate Attributes [2]: [sum#49, isEmpty#50]
+Results [10]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+
+(52) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, 42) AS hash_partition_key#53, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+Input [10]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+
+(53) WholeStageCodegenTransformer (11)
+Input [11]: [hash_partition_key#53, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+Arguments: false
+
+(54) ColumnarExchange
+Input [11]: [hash_partition_key#53, c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+Arguments: hashpartitioning(c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, 1), ENSURE_REQUIREMENTS, [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52], [plan_id=6], [shuffle_writer_type=hash]
+
+(55) InputAdapter
+Input [10]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+
+(56) InputIteratorTransformer
+Input [10]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+
+(57) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum#51, isEmpty#52]
+Keys [8]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38]
+Functions [1]: [sum(((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2))]
+Aggregate Attributes [1]: [sum(((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2))#26]
+Results [9]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum(((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2))#26]
+
+(58) ProjectExecTransformer
+Output [9]: [hash(c_customer_id#41, 42) AS hash_partition_key#54, c_customer_id#41 AS customer_id#55, c_first_name#42 AS customer_first_name#56, c_last_name#43 AS customer_last_name#57, c_preferred_cust_flag#44 AS customer_preferred_cust_flag#58, c_birth_country#45 AS customer_birth_country#59, c_login#46 AS customer_login#60, c_email_address#47 AS customer_email_address#61, sum(((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2))#26 AS year_total#62]
+Input [9]: [c_customer_id#41, c_first_name#42, c_last_name#43, c_preferred_cust_flag#44, c_birth_country#45, c_login#46, c_email_address#47, d_year#38, sum(((((ss_ext_list_price#34 - ss_ext_wholesale_cost#33) - ss_ext_discount_amt#31) + ss_ext_sales_price#32) / 2))#26]
+
+(59) WholeStageCodegenTransformer (12)
+Input [9]: [hash_partition_key#54, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62]
+Arguments: false
+
+(60) ColumnarExchange
+Input [9]: [hash_partition_key#54, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62]
+Arguments: hashpartitioning(customer_id#55, 1), ENSURE_REQUIREMENTS, [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62], [plan_id=7], [shuffle_writer_type=hash]
+
+(61) InputAdapter
+Input [8]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62]
+
+(62) InputIteratorTransformer
+Input [8]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62]
+
+(63) ShuffledHashJoinExecTransformer
+Left keys [1]: [customer_id#27]
+Right keys [1]: [customer_id#55]
+Join type: Inner
+Join condition: None
+
+(64) FileSourceScanExecTransformer parquet spark_catalog.default.catalog_sales
+Output [6]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, cs_sold_date_sk#68]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(cs_sold_date_sk#68), dynamicpruningexpression(cs_sold_date_sk#68 IN dynamicpruning#7)]
+PushedFilters: [IsNotNull(cs_bill_customer_sk)]
+ReadSchema: struct<cs_bill_customer_sk:int,cs_ext_discount_amt:decimal(7,2),cs_ext_sales_price:decimal(7,2),cs_ext_wholesale_cost:decimal(7,2),cs_ext_list_price:decimal(7,2)>
+
+(65) FilterExecTransformer
+Input [6]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, cs_sold_date_sk#68]
+Arguments: isnotnull(cs_bill_customer_sk#63)
+
+(66) ReusedExchange [Reuses operator id: 194]
+Output [2]: [d_date_sk#69, d_year#70]
+
+(67) InputAdapter
+Input [2]: [d_date_sk#69, d_year#70]
+
+(68) InputIteratorTransformer
+Input [2]: [d_date_sk#69, d_year#70]
+
+(69) BroadcastHashJoinExecTransformer
+Left keys [1]: [cs_sold_date_sk#68]
+Right keys [1]: [d_date_sk#69]
+Join type: Inner
+Join condition: None
+
+(70) ProjectExecTransformer
+Output [7]: [hash(cs_bill_customer_sk#63, 42) AS hash_partition_key#71, cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70]
+Input [8]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, cs_sold_date_sk#68, d_date_sk#69, d_year#70]
+
+(71) WholeStageCodegenTransformer (15)
+Input [7]: [hash_partition_key#71, cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70]
+Arguments: false
+
+(72) ColumnarExchange
+Input [7]: [hash_partition_key#71, cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70]
+Arguments: hashpartitioning(cs_bill_customer_sk#63, 1), ENSURE_REQUIREMENTS, [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70], [plan_id=8], [shuffle_writer_type=hash]
+
+(73) InputAdapter
+Input [6]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70]
+
+(74) InputIteratorTransformer
+Input [6]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70]
+
+(75) ReusedExchange [Reuses operator id: 16]
+Output [8]: [c_customer_sk#72, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79]
+
+(76) InputAdapter
+Input [8]: [c_customer_sk#72, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79]
+
+(77) InputIteratorTransformer
+Input [8]: [c_customer_sk#72, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79]
+
+(78) ShuffledHashJoinExecTransformer
+Left keys [1]: [cs_bill_customer_sk#63]
+Right keys [1]: [c_customer_sk#72]
+Join type: Inner
+Join condition: None
+
+(79) ProjectExecTransformer
+Output [9]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, ((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2) AS _pre_3#80]
+Input [14]: [cs_bill_customer_sk#63, cs_ext_discount_amt#64, cs_ext_sales_price#65, cs_ext_wholesale_cost#66, cs_ext_list_price#67, d_year#70, c_customer_sk#72, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79]
+
+(80) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, _pre_3#80]
+Keys [8]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70]
+Functions [1]: [partial_sum(_pre_3#80)]
+Aggregate Attributes [2]: [sum#81, isEmpty#82]
+Results [10]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+
+(81) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, 42) AS hash_partition_key#85, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+Input [10]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+
+(82) WholeStageCodegenTransformer (17)
+Input [11]: [hash_partition_key#85, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+Arguments: false
+
+(83) ColumnarExchange
+Input [11]: [hash_partition_key#85, c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+Arguments: hashpartitioning(c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, 1), ENSURE_REQUIREMENTS, [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84], [plan_id=9], [shuffle_writer_type=hash]
+
+(84) InputAdapter
+Input [10]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+
+(85) InputIteratorTransformer
+Input [10]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+
+(86) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum#83, isEmpty#84]
+Keys [8]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70]
+Functions [1]: [sum(((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2))]
+Aggregate Attributes [1]: [sum(((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2))#86]
+Results [9]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum(((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2))#86]
+
+(87) ProjectExecTransformer
+Output [2]: [c_customer_id#73 AS customer_id#87, sum(((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2))#86 AS year_total#88]
+Input [9]: [c_customer_id#73, c_first_name#74, c_last_name#75, c_preferred_cust_flag#76, c_birth_country#77, c_login#78, c_email_address#79, d_year#70, sum(((((cs_ext_list_price#67 - cs_ext_wholesale_cost#66) - cs_ext_discount_amt#64) + cs_ext_sales_price#65) / 2))#86]
+
+(88) FilterExecTransformer
+Input [2]: [customer_id#87, year_total#88]
+Arguments: (isnotnull(year_total#88) AND (year_total#88 > 0.000000))
+
+(89) ProjectExecTransformer
+Output [3]: [hash(customer_id#87, 42) AS hash_partition_key#89, customer_id#87, year_total#88]
+Input [2]: [customer_id#87, year_total#88]
+
+(90) WholeStageCodegenTransformer (18)
+Input [3]: [hash_partition_key#89, customer_id#87, year_total#88]
+Arguments: false
+
+(91) ColumnarExchange
+Input [3]: [hash_partition_key#89, customer_id#87, year_total#88]
+Arguments: hashpartitioning(customer_id#87, 1), ENSURE_REQUIREMENTS, [customer_id#87, year_total#88], [plan_id=10], [shuffle_writer_type=hash]
+
+(92) InputAdapter
+Input [2]: [customer_id#87, year_total#88]
+
+(93) InputIteratorTransformer
+Input [2]: [customer_id#87, year_total#88]
+
+(94) ShuffledHashJoinExecTransformer
+Left keys [1]: [customer_id#27]
+Right keys [1]: [customer_id#87]
+Join type: Inner
+Join condition: None
+
+(95) ProjectExecTransformer
+Output [11]: [customer_id#27, year_total#28, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62, year_total#88]
+Input [12]: [customer_id#27, year_total#28, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62, customer_id#87, year_total#88]
+
+(96) FileSourceScanExecTransformer parquet spark_catalog.default.catalog_sales
+Output [6]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, cs_sold_date_sk#95]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(cs_sold_date_sk#95), dynamicpruningexpression(cs_sold_date_sk#95 IN dynamicpruning#36)]
+PushedFilters: [IsNotNull(cs_bill_customer_sk)]
+ReadSchema: struct<cs_bill_customer_sk:int,cs_ext_discount_amt:decimal(7,2),cs_ext_sales_price:decimal(7,2),cs_ext_wholesale_cost:decimal(7,2),cs_ext_list_price:decimal(7,2)>
+
+(97) FilterExecTransformer
+Input [6]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, cs_sold_date_sk#95]
+Arguments: isnotnull(cs_bill_customer_sk#90)
+
+(98) ReusedExchange [Reuses operator id: 198]
+Output [2]: [d_date_sk#96, d_year#97]
+
+(99) InputAdapter
+Input [2]: [d_date_sk#96, d_year#97]
+
+(100) InputIteratorTransformer
+Input [2]: [d_date_sk#96, d_year#97]
+
+(101) BroadcastHashJoinExecTransformer
+Left keys [1]: [cs_sold_date_sk#95]
+Right keys [1]: [d_date_sk#96]
+Join type: Inner
+Join condition: None
+
+(102) ProjectExecTransformer
+Output [7]: [hash(cs_bill_customer_sk#90, 42) AS hash_partition_key#98, cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97]
+Input [8]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, cs_sold_date_sk#95, d_date_sk#96, d_year#97]
+
+(103) WholeStageCodegenTransformer (21)
+Input [7]: [hash_partition_key#98, cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97]
+Arguments: false
+
+(104) ColumnarExchange
+Input [7]: [hash_partition_key#98, cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97]
+Arguments: hashpartitioning(cs_bill_customer_sk#90, 1), ENSURE_REQUIREMENTS, [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97], [plan_id=11], [shuffle_writer_type=hash]
+
+(105) InputAdapter
+Input [6]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97]
+
+(106) InputIteratorTransformer
+Input [6]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97]
+
+(107) ReusedExchange [Reuses operator id: 16]
+Output [8]: [c_customer_sk#99, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106]
+
+(108) InputAdapter
+Input [8]: [c_customer_sk#99, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106]
+
+(109) InputIteratorTransformer
+Input [8]: [c_customer_sk#99, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106]
+
+(110) ShuffledHashJoinExecTransformer
+Left keys [1]: [cs_bill_customer_sk#90]
+Right keys [1]: [c_customer_sk#99]
+Join type: Inner
+Join condition: None
+
+(111) ProjectExecTransformer
+Output [9]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, ((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2) AS _pre_4#107]
+Input [14]: [cs_bill_customer_sk#90, cs_ext_discount_amt#91, cs_ext_sales_price#92, cs_ext_wholesale_cost#93, cs_ext_list_price#94, d_year#97, c_customer_sk#99, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106]
+
+(112) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, _pre_4#107]
+Keys [8]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97]
+Functions [1]: [partial_sum(_pre_4#107)]
+Aggregate Attributes [2]: [sum#108, isEmpty#109]
+Results [10]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+
+(113) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, 42) AS hash_partition_key#112, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+Input [10]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+
+(114) WholeStageCodegenTransformer (23)
+Input [11]: [hash_partition_key#112, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+Arguments: false
+
+(115) ColumnarExchange
+Input [11]: [hash_partition_key#112, c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+Arguments: hashpartitioning(c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, 1), ENSURE_REQUIREMENTS, [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111], [plan_id=12], [shuffle_writer_type=hash]
+
+(116) InputAdapter
+Input [10]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+
+(117) InputIteratorTransformer
+Input [10]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+
+(118) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum#110, isEmpty#111]
+Keys [8]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97]
+Functions [1]: [sum(((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2))]
+Aggregate Attributes [1]: [sum(((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2))#86]
+Results [9]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum(((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2))#86]
+
+(119) ProjectExecTransformer
+Output [3]: [hash(c_customer_id#100, 42) AS hash_partition_key#113, c_customer_id#100 AS customer_id#114, sum(((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2))#86 AS year_total#115]
+Input [9]: [c_customer_id#100, c_first_name#101, c_last_name#102, c_preferred_cust_flag#103, c_birth_country#104, c_login#105, c_email_address#106, d_year#97, sum(((((cs_ext_list_price#94 - cs_ext_wholesale_cost#93) - cs_ext_discount_amt#91) + cs_ext_sales_price#92) / 2))#86]
+
+(120) WholeStageCodegenTransformer (24)
+Input [3]: [hash_partition_key#113, customer_id#114, year_total#115]
+Arguments: false
+
+(121) ColumnarExchange
+Input [3]: [hash_partition_key#113, customer_id#114, year_total#115]
+Arguments: hashpartitioning(customer_id#114, 1), ENSURE_REQUIREMENTS, [customer_id#114, year_total#115], [plan_id=13], [shuffle_writer_type=hash]
+
+(122) InputAdapter
+Input [2]: [customer_id#114, year_total#115]
+
+(123) InputIteratorTransformer
+Input [2]: [customer_id#114, year_total#115]
+
+(124) ShuffledHashJoinExecTransformer
+Left keys [1]: [customer_id#27]
+Right keys [1]: [customer_id#114]
+Join type: Inner
+Join condition: (CASE WHEN (year_total#88 > 0.000000) THEN (year_total#115 / year_total#88) END > CASE WHEN (year_total#28 > 0.000000) THEN (year_total#62 / year_total#28) END)
+
+(125) ProjectExecTransformer
+Output [10]: [customer_id#27, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#88, year_total#115]
+Input [13]: [customer_id#27, year_total#28, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#62, year_total#88, customer_id#114, year_total#115]
+
+(126) FileSourceScanExecTransformer parquet spark_catalog.default.web_sales
+Output [6]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, ws_sold_date_sk#121]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(ws_sold_date_sk#121), dynamicpruningexpression(ws_sold_date_sk#121 IN dynamicpruning#7)]
+PushedFilters: [IsNotNull(ws_bill_customer_sk)]
+ReadSchema: struct<ws_bill_customer_sk:int,ws_ext_discount_amt:decimal(7,2),ws_ext_sales_price:decimal(7,2),ws_ext_wholesale_cost:decimal(7,2),ws_ext_list_price:decimal(7,2)>
+
+(127) FilterExecTransformer
+Input [6]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, ws_sold_date_sk#121]
+Arguments: isnotnull(ws_bill_customer_sk#116)
+
+(128) ReusedExchange [Reuses operator id: 194]
+Output [2]: [d_date_sk#122, d_year#123]
+
+(129) InputAdapter
+Input [2]: [d_date_sk#122, d_year#123]
+
+(130) InputIteratorTransformer
+Input [2]: [d_date_sk#122, d_year#123]
+
+(131) BroadcastHashJoinExecTransformer
+Left keys [1]: [ws_sold_date_sk#121]
+Right keys [1]: [d_date_sk#122]
+Join type: Inner
+Join condition: None
+
+(132) ProjectExecTransformer
+Output [7]: [hash(ws_bill_customer_sk#116, 42) AS hash_partition_key#124, ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123]
+Input [8]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, ws_sold_date_sk#121, d_date_sk#122, d_year#123]
+
+(133) WholeStageCodegenTransformer (27)
+Input [7]: [hash_partition_key#124, ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123]
+Arguments: false
+
+(134) ColumnarExchange
+Input [7]: [hash_partition_key#124, ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123]
+Arguments: hashpartitioning(ws_bill_customer_sk#116, 1), ENSURE_REQUIREMENTS, [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123], [plan_id=14], [shuffle_writer_type=hash]
+
+(135) InputAdapter
+Input [6]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123]
+
+(136) InputIteratorTransformer
+Input [6]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123]
+
+(137) ReusedExchange [Reuses operator id: 16]
+Output [8]: [c_customer_sk#125, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132]
+
+(138) InputAdapter
+Input [8]: [c_customer_sk#125, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132]
+
+(139) InputIteratorTransformer
+Input [8]: [c_customer_sk#125, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132]
+
+(140) ShuffledHashJoinExecTransformer
+Left keys [1]: [ws_bill_customer_sk#116]
+Right keys [1]: [c_customer_sk#125]
+Join type: Inner
+Join condition: None
+
+(141) ProjectExecTransformer
+Output [9]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, ((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2) AS _pre_5#133]
+Input [14]: [ws_bill_customer_sk#116, ws_ext_discount_amt#117, ws_ext_sales_price#118, ws_ext_wholesale_cost#119, ws_ext_list_price#120, d_year#123, c_customer_sk#125, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132]
+
+(142) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, _pre_5#133]
+Keys [8]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123]
+Functions [1]: [partial_sum(_pre_5#133)]
+Aggregate Attributes [2]: [sum#134, isEmpty#135]
+Results [10]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+
+(143) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, 42) AS hash_partition_key#138, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+Input [10]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+
+(144) WholeStageCodegenTransformer (29)
+Input [11]: [hash_partition_key#138, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+Arguments: false
+
+(145) ColumnarExchange
+Input [11]: [hash_partition_key#138, c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+Arguments: hashpartitioning(c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, 1), ENSURE_REQUIREMENTS, [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137], [plan_id=15], [shuffle_writer_type=hash]
+
+(146) InputAdapter
+Input [10]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+
+(147) InputIteratorTransformer
+Input [10]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+
+(148) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum#136, isEmpty#137]
+Keys [8]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123]
+Functions [1]: [sum(((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2))]
+Aggregate Attributes [1]: [sum(((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2))#139]
+Results [9]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum(((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2))#139]
+
+(149) ProjectExecTransformer
+Output [2]: [c_customer_id#126 AS customer_id#140, sum(((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2))#139 AS year_total#141]
+Input [9]: [c_customer_id#126, c_first_name#127, c_last_name#128, c_preferred_cust_flag#129, c_birth_country#130, c_login#131, c_email_address#132, d_year#123, sum(((((ws_ext_list_price#120 - ws_ext_wholesale_cost#119) - ws_ext_discount_amt#117) + ws_ext_sales_price#118) / 2))#139]
+
+(150) FilterExecTransformer
+Input [2]: [customer_id#140, year_total#141]
+Arguments: (isnotnull(year_total#141) AND (year_total#141 > 0.000000))
+
+(151) ProjectExecTransformer
+Output [3]: [hash(customer_id#140, 42) AS hash_partition_key#142, customer_id#140, year_total#141]
+Input [2]: [customer_id#140, year_total#141]
+
+(152) WholeStageCodegenTransformer (30)
+Input [3]: [hash_partition_key#142, customer_id#140, year_total#141]
+Arguments: false
+
+(153) ColumnarExchange
+Input [3]: [hash_partition_key#142, customer_id#140, year_total#141]
+Arguments: hashpartitioning(customer_id#140, 1), ENSURE_REQUIREMENTS, [customer_id#140, year_total#141], [plan_id=16], [shuffle_writer_type=hash]
+
+(154) InputAdapter
+Input [2]: [customer_id#140, year_total#141]
+
+(155) InputIteratorTransformer
+Input [2]: [customer_id#140, year_total#141]
+
+(156) ShuffledHashJoinExecTransformer
+Left keys [1]: [customer_id#27]
+Right keys [1]: [customer_id#140]
+Join type: Inner
+Join condition: None
+
+(157) ProjectExecTransformer
+Output [11]: [customer_id#27, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#88, year_total#115, year_total#141]
+Input [12]: [customer_id#27, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#88, year_total#115, customer_id#140, year_total#141]
+
+(158) FileSourceScanExecTransformer parquet spark_catalog.default.web_sales
+Output [6]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, ws_sold_date_sk#148]
+Batched: true
+Location: InMemoryFileIndex []
+PartitionFilters: [isnotnull(ws_sold_date_sk#148), dynamicpruningexpression(ws_sold_date_sk#148 IN dynamicpruning#36)]
+PushedFilters: [IsNotNull(ws_bill_customer_sk)]
+ReadSchema: struct<ws_bill_customer_sk:int,ws_ext_discount_amt:decimal(7,2),ws_ext_sales_price:decimal(7,2),ws_ext_wholesale_cost:decimal(7,2),ws_ext_list_price:decimal(7,2)>
+
+(159) FilterExecTransformer
+Input [6]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, ws_sold_date_sk#148]
+Arguments: isnotnull(ws_bill_customer_sk#143)
+
+(160) ReusedExchange [Reuses operator id: 198]
+Output [2]: [d_date_sk#149, d_year#150]
+
+(161) InputAdapter
+Input [2]: [d_date_sk#149, d_year#150]
+
+(162) InputIteratorTransformer
+Input [2]: [d_date_sk#149, d_year#150]
+
+(163) BroadcastHashJoinExecTransformer
+Left keys [1]: [ws_sold_date_sk#148]
+Right keys [1]: [d_date_sk#149]
+Join type: Inner
+Join condition: None
+
+(164) ProjectExecTransformer
+Output [7]: [hash(ws_bill_customer_sk#143, 42) AS hash_partition_key#151, ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150]
+Input [8]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, ws_sold_date_sk#148, d_date_sk#149, d_year#150]
+
+(165) WholeStageCodegenTransformer (33)
+Input [7]: [hash_partition_key#151, ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150]
+Arguments: false
+
+(166) ColumnarExchange
+Input [7]: [hash_partition_key#151, ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150]
+Arguments: hashpartitioning(ws_bill_customer_sk#143, 1), ENSURE_REQUIREMENTS, [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150], [plan_id=17], [shuffle_writer_type=hash]
+
+(167) InputAdapter
+Input [6]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150]
+
+(168) InputIteratorTransformer
+Input [6]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150]
+
+(169) ReusedExchange [Reuses operator id: 16]
+Output [8]: [c_customer_sk#152, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159]
+
+(170) InputAdapter
+Input [8]: [c_customer_sk#152, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159]
+
+(171) InputIteratorTransformer
+Input [8]: [c_customer_sk#152, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159]
+
+(172) ShuffledHashJoinExecTransformer
+Left keys [1]: [ws_bill_customer_sk#143]
+Right keys [1]: [c_customer_sk#152]
+Join type: Inner
+Join condition: None
+
+(173) ProjectExecTransformer
+Output [9]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, ((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2) AS _pre_6#160]
+Input [14]: [ws_bill_customer_sk#143, ws_ext_discount_amt#144, ws_ext_sales_price#145, ws_ext_wholesale_cost#146, ws_ext_list_price#147, d_year#150, c_customer_sk#152, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159]
+
+(174) FlushableHashAggregateExecTransformer
+Input [9]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, _pre_6#160]
+Keys [8]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150]
+Functions [1]: [partial_sum(_pre_6#160)]
+Aggregate Attributes [2]: [sum#161, isEmpty#162]
+Results [10]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+
+(175) ProjectExecTransformer
+Output [11]: [hash(c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, 42) AS hash_partition_key#165, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+Input [10]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+
+(176) WholeStageCodegenTransformer (35)
+Input [11]: [hash_partition_key#165, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+Arguments: false
+
+(177) ColumnarExchange
+Input [11]: [hash_partition_key#165, c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+Arguments: hashpartitioning(c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, 1), ENSURE_REQUIREMENTS, [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164], [plan_id=18], [shuffle_writer_type=hash]
+
+(178) InputAdapter
+Input [10]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+
+(179) InputIteratorTransformer
+Input [10]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+
+(180) RegularHashAggregateExecTransformer
+Input [10]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum#163, isEmpty#164]
+Keys [8]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150]
+Functions [1]: [sum(((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2))]
+Aggregate Attributes [1]: [sum(((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2))#139]
+Results [9]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum(((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2))#139]
+
+(181) ProjectExecTransformer
+Output [3]: [hash(c_customer_id#153, 42) AS hash_partition_key#166, c_customer_id#153 AS customer_id#167, sum(((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2))#139 AS year_total#168]
+Input [9]: [c_customer_id#153, c_first_name#154, c_last_name#155, c_preferred_cust_flag#156, c_birth_country#157, c_login#158, c_email_address#159, d_year#150, sum(((((ws_ext_list_price#147 - ws_ext_wholesale_cost#146) - ws_ext_discount_amt#144) + ws_ext_sales_price#145) / 2))#139]
+
+(182) WholeStageCodegenTransformer (36)
+Input [3]: [hash_partition_key#166, customer_id#167, year_total#168]
+Arguments: false
+
+(183) ColumnarExchange
+Input [3]: [hash_partition_key#166, customer_id#167, year_total#168]
+Arguments: hashpartitioning(customer_id#167, 1), ENSURE_REQUIREMENTS, [customer_id#167, year_total#168], [plan_id=19], [shuffle_writer_type=hash]
+
+(184) InputAdapter
+Input [2]: [customer_id#167, year_total#168]
+
+(185) InputIteratorTransformer
+Input [2]: [customer_id#167, year_total#168]
+
+(186) ShuffledHashJoinExecTransformer
+Left keys [1]: [customer_id#27]
+Right keys [1]: [customer_id#167]
+Join type: Inner
+Join condition: (CASE WHEN (year_total#88 > 0.000000) THEN (year_total#115 / year_total#88) END > CASE WHEN (year_total#141 > 0.000000) THEN (year_total#168 / year_total#141) END)
+
+(187) ProjectExecTransformer
+Output [7]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61]
+Input [13]: [customer_id#27, customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61, year_total#88, year_total#115, year_total#141, customer_id#167, year_total#168]
+
+(188) WholeStageCodegenTransformer (37)
+Input [7]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61]
+Arguments: false
+
+(189) TakeOrderedAndProjectExecTransformer
+Input [7]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61]
+Arguments: 100, [customer_id#55 ASC NULLS FIRST, customer_first_name#56 ASC NULLS FIRST, customer_last_name#57 ASC NULLS FIRST, customer_preferred_cust_flag#58 ASC NULLS FIRST, customer_birth_country#59 ASC NULLS FIRST, customer_login#60 ASC NULLS FIRST, customer_email_address#61 ASC NULLS FIRST], [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61], 0
+
+(190) BoltColumnarToRow
+Input [7]: [customer_id#55, customer_first_name#56, customer_last_name#57, customer_preferred_cust_flag#58, customer_birth_country#59, customer_login#60, customer_email_address#61]
+
+===== Subqueries =====
+
+Subquery:1 Hosting operator id = 1 Hosting Expression = ss_sold_date_sk#6 IN dynamicpruning#7
+ColumnarBroadcastExchange (194)
++- ^ FilterExecTransformer (192)
+   +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.date_dim (191)
+
+
+(191) FileSourceScanExecTransformer parquet spark_catalog.default.date_dim
+Output [2]: [d_date_sk#8, d_year#9]
+Batched: true
+Location: InMemoryFileIndex [{warehouse_dir}/date_dim]
+PushedFilters: [IsNotNull(d_year), EqualTo(d_year,2001), IsNotNull(d_date_sk)]
+ReadSchema: struct<d_date_sk:int,d_year:int>
+
+(192) FilterExecTransformer
+Input [2]: [d_date_sk#8, d_year#9]
+Arguments: ((isnotnull(d_year#9) AND (d_year#9 = 2001)) AND isnotnull(d_date_sk#8))
+
+(193) WholeStageCodegenTransformer (1)
+Input [2]: [d_date_sk#8, d_year#9]
+Arguments: false
+
+(194) ColumnarBroadcastExchange
+Input [2]: [d_date_sk#8, d_year#9]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, false] as bigint)),false), [plan_id=20]
+
+Subquery:2 Hosting operator id = 35 Hosting Expression = ss_sold_date_sk#35 IN dynamicpruning#36
+ColumnarBroadcastExchange (198)
++- ^ FilterExecTransformer (196)
+   +- ^ FileSourceScanExecTransformer parquet spark_catalog.default.date_dim (195)
+
+
+(195) FileSourceScanExecTransformer parquet spark_catalog.default.date_dim
+Output [2]: [d_date_sk#37, d_year#38]
+Batched: true
+Location: InMemoryFileIndex [{warehouse_dir}/date_dim]
+PushedFilters: [IsNotNull(d_year), EqualTo(d_year,2002), IsNotNull(d_date_sk)]
+ReadSchema: struct<d_date_sk:int,d_year:int>
+
+(196) FilterExecTransformer
+Input [2]: [d_date_sk#37, d_year#38]
+Arguments: ((isnotnull(d_year#38) AND (d_year#38 = 2002)) AND isnotnull(d_date_sk#37))
+
+(197) WholeStageCodegenTransformer (7)
+Input [2]: [d_date_sk#37, d_year#38]
+Arguments: false
+
+(198) ColumnarBroadcastExchange
+Input [2]: [d_date_sk#37, d_year#38]
+Arguments: HashedRelationBroadcastMode(List(cast(input[0, int, false] as bigint)),false), [plan_id=21]
+
+Subquery:3 Hosting operator id = 64 Hosting Expression = cs_sold_date_sk#68 IN dynamicpruning#7
+
+Subquery:4 Hosting operator id = 96 Hosting Expression = cs_sold_date_sk#95 IN dynamicpruning#36
+
+Subquery:5 Hosting operator id = 126 Hosting Expression = ws_sold_date_sk#121 IN dynamicpruning#7
+
+Subquery:6 Hosting operator id = 158 Hosting Expression = ws_sold_date_sk#148 IN dynamicpruning#36
+
+
