@@ -16,6 +16,8 @@
  */
 package org.apache.gluten.execution
 
+import org.apache.gluten.config.BoltConfig
+
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types._
@@ -138,11 +140,35 @@ class BoltExplodeExpressionSuite extends WholeStageTransformerSuite {
     }
   }
   test("Remove project before generator") {
-    runQueryAndCompare(
+    val query =
       s"select * from (select col2 as id,col3 as l_col3 from values('1,2,3,4',2) ,('1,2,3,4',1)" +
         s"lateral view explode(split(col1, ',')) b as col3 )" +
-        s"cross join (select col1,col2 as id_2 from values('1','2'))") {
-      df => assert(getExecutedPlan(df).count(p => p.isInstanceOf[ProjectExecTransformer]) == 1)
+        s"cross join (select col1,col2 as id_2 from values('1','2'))"
+    for (enabled <- Seq(false, true)) {
+      withSQLConf(BoltConfig.ENABLE_COLUMNAR_PROJECT_REMOVE.key -> enabled.toString) {
+        runQueryAndCompare(query) {
+          df =>
+            val plan = getExecutedPlan(df)
+            val generators = plan.collect { case g: GenerateExecTransformer => g }
+            assert(generators.size == 1)
+            val generate = generators.head
+            val projectsAboveGenerate = plan.collect {
+              case p @ ProjectExecTransformer(_, _: GenerateExecTransformer) => p
+            }
+            // Removing the output aliases can require an input projection to bind renamed
+            // child columns. Check the target projection, not the whole query's project count.
+            if (enabled) {
+              assert(projectsAboveGenerate.isEmpty)
+              assert(generate.output.map(_.name) == Seq("id", "l_col3"))
+            } else {
+              assert(projectsAboveGenerate.size == 1)
+              assert(projectsAboveGenerate.head.output.map(_.name) == Seq("id", "l_col3"))
+            }
+            assert(generate.requiredChildOutput.forall(generate.child.outputSet.contains))
+            assert(generate.generator.references.subsetOf(generate.child.outputSet))
+            assert(df.columns.toSeq == Seq("id", "l_col3", "col1", "id_2"))
+        }
+      }
     }
   }
   test("Pushdown project before filter and generator") {
