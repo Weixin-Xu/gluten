@@ -1095,7 +1095,10 @@ class BoltSparkPlanExecApi extends SparkPlanExecApi {
   override def genPostProjectForGenerate(generate: GenerateExec): SparkPlan = {
     generate.generator match {
       case _: JsonTupleExplode =>
-        PullOutGenerateProjectHelper.pullOutPostProject(generate)
+        // The json_tuple pre-project always produces array(struct(...)) with one element,
+        // even for null or invalid JSON. Non-outer generation therefore preserves every row
+        // and unpacks the struct without the isPresent column that Bolt does not produce.
+        PullOutGenerateProjectHelper.pullOutPostProject(generate.copy(outer = false))
       case _ =>
         generate
     }

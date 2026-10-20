@@ -33,15 +33,18 @@ class BoltJsonTupleProjectSuite extends AnyFunSuite {
     override protected def doExecute(): RDD[InternalRow] =
       throw new UnsupportedOperationException("Plan-only regression")
   }
-  for (keys <- Seq(Seq("test"), Seq("first", "second", "third"))) {
+  for {
+    keys <- Seq(Seq("test"), Seq("first", "second", "third"))
+    outer <- Seq(false, true)
+  } {
     test(
-      s"json_tuple with ${keys.size} fields projects native row fields to original Spark strings") {
+      s"json_tuple with ${keys.size} fields and outer=$outer projects native row fields") {
       val json = AttributeReference("json", StringType)()
       val output = keys.indices.map(i => AttributeReference(s"c$i", StringType)())
       val original = GenerateExec(
         JsonTuple(Seq(json) ++ keys.map(Literal(_))),
         Nil,
-        false,
+        outer,
         output,
         InputPlan(json))
       val pre = PullOutGenerateProjectHelper.pullOutPreProject(original).asInstanceOf[GenerateExec]

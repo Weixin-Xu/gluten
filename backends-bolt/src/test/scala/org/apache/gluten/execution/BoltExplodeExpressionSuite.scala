@@ -164,6 +164,63 @@ class BoltExplodeExpressionSuite extends WholeStageTransformerSuite {
       s"select c3, vid from table2 lateral " +
         s"view explode(c3) tmp as vid where vid is null") { _ => }
   }
+
+  private def withJsonTupleTable(f: => Unit): Unit = {
+    withTempPath {
+      path =>
+        withTable("json_tuple_input") {
+          val schema = new StructType().add("id", IntegerType).add("json_column", StringType)
+          val rows = Seq(
+            Row(1, """{"a":"value","b":"second"}"""),
+            Row(2, """{"a":null}"""),
+            Row(3, "{}"),
+            Row(4, null),
+            Row(5, "invalid json"),
+            Row(6, "null"))
+          withSQLConf("spark.gluten.enabled" -> "false") {
+            spark.createDataFrame(rows.asJava, schema).coalesce(1).write.parquet(path.toString)
+          }
+          spark.catalog.createTable("json_tuple_input", path.toString, "parquet")
+          f
+        }
+    }
+  }
+
+  for (outer <- Seq(false, true)) {
+    val outerSql = if (outer) "OUTER" else ""
+    test(s"file json_tuple outer=$outer preserves rows with unused generator output") {
+      withJsonTupleTable {
+        runQueryAndCompare(
+          s"""SELECT count(*) FROM json_tuple_input
+             |LATERAL VIEW $outerSql json_tuple(json_column, 'a') jt AS a""".stripMargin) {
+          df =>
+            checkGlutenPlan[GenerateExecTransformer](df)
+            checkAnswer(df, Seq(Row(6L)))
+        }
+      }
+    }
+
+    test(s"file json_tuple outer=$outer unpacks fields and preserves child columns") {
+      withJsonTupleTable {
+        runQueryAndCompare(
+          s"""SELECT id, a, b FROM json_tuple_input
+             |LATERAL VIEW $outerSql json_tuple(json_column, 'a', 'b') jt AS a, b""".stripMargin) {
+          df =>
+            checkGlutenPlan[GenerateExecTransformer](df)
+            checkAnswer(
+              df,
+              Seq(
+                Row(1, "value", "second"),
+                Row(2, null, null),
+                Row(3, null, null),
+                Row(4, null, null),
+                Row(5, null, null),
+                Row(6, null, null)))
+        }
+      }
+    }
+  }
+
   test("Test with Continuously explode") {
     runQueryAndCompare(
       s"select t_c3, t_c4, t_c5 from (" +
