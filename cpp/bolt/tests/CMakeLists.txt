@@ -75,13 +75,6 @@ add_bolt_test(buffer_outputstream_test SOURCES BufferOutputStreamTest.cc)
 if(BUILD_EXAMPLES)
   # The UDF plugin and its test must share one engine, including its function
   # and protobuf registries. Avoid the static engine in add_bolt_test().
-  # The parser hook lives in Bolt's testutils archive. Retain it in the shared
-  # engine so the test and plugin use the same registries.
-  if(NOT APPLE)
-    target_link_options(
-      ${PROJECT_NAME} PRIVATE
-      "LINKER:--undefined=_ZN9bytedance4bolt5parse20registerTypeResolverEv")
-  endif()
   add_executable(my_udf_test MyUdfTest.cc)
   add_dependencies(my_udf_test ${PROJECT_NAME})
   target_include_directories(

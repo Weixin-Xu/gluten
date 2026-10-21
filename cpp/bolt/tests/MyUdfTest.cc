@@ -17,10 +17,7 @@
 
 #include <gtest/gtest.h>
 #include <vector>
-#include "bolt/common/memory/Memory.h"
-#include "bolt/core/QueryConfig.h"
 #include "bolt/expression/SimpleFunctionRegistry.h"
-#include "bolt/parse/TypeResolver.h"
 #include "udf/UdfLoader.h"
 
 using namespace bytedance::bolt;
@@ -28,16 +25,13 @@ using namespace bytedance::bolt;
 class MyUdfTest : public ::testing::Test {
  protected:
   static void SetUpTestCase() {
-    parse::registerTypeResolver();
     auto udfLoader = gluten::UdfLoader::getInstance();
     udfLoader->loadUdfLibraries("../udf/examples/libmyudf.so");
     udfLoader->registerUdf();
-    memory::MemoryManager::testingSetInstance(memory::MemoryManager::Options{});
   }
 };
 
 TEST_F(MyUdfTest, hivestringstring) {
   const std::string name = "org.apache.spark.sql.hive.execution.UDFStringString";
-  const core::QueryConfig config({});
   EXPECT_EQ(TypeKind::VARCHAR, exec::simpleFunctions().resolveFunction(name, {VARCHAR(), VARCHAR()})->type()->kind());
 }
