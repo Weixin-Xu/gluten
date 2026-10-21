@@ -45,10 +45,7 @@ class BoltDeltaComponent extends Component {
     val legacy = injector.gluten.legacy
     legacy.injectTransform {
       c =>
-        val offload = Seq(
-          BoltOffloadDeltaScan(),
-          OffloadDeltaProject(),
-          OffloadDeltaFilter())
+        val offload = Seq(BoltOffloadDeltaScan(), OffloadDeltaProject(), OffloadDeltaFilter())
           .map(_.toStrcitRule())
         HeuristicTransform.Simple(
           Validators.newValidator(new GlutenConfig(c.sqlConf), offload),
