@@ -773,11 +773,6 @@ class BoltSparkPlanExecApi extends SparkPlanExecApi {
     }
   }
 
-  override def doCanonicalizeForBroadcastMode(mode: BroadcastMode): BroadcastMode = {
-    // Preserve the build keys so a reused exchange satisfies the join's broadcast distribution.
-    mode.canonicalized
-  }
-
   /**
    * * Expressions.
    */
