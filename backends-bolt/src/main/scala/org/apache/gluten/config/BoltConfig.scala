@@ -138,7 +138,6 @@ class BoltConfig(conf: SQLConf) extends GlutenConfig(conf) {
   def orcUseColumnNames: Boolean = getConf(ORC_USE_COLUMN_NAMES)
 
   def parquetUseColumnNames: Boolean = getConf(PARQUET_USE_COLUMN_NAMES)
-
 }
 
 object BoltConfig extends ConfigRegistry {

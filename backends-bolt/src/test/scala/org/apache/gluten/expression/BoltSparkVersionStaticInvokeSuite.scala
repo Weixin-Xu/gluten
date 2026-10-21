@@ -28,7 +28,7 @@ import org.apache.spark.util.SparkReflectionUtil
 
 import org.scalatest.funsuite.AnyFunSuite
 
-import java.lang.reflect.{InvocationHandler, InvocationTargetException, Method, Proxy}
+import java.lang.reflect.InvocationTargetException
 
 class BoltSparkVersionStaticInvokeSuite extends AnyFunSuite {
   private val implClass =
@@ -77,21 +77,13 @@ class BoltSparkVersionStaticInvokeSuite extends AnyFunSuite {
 
   test("an unmodified backend API default retains the original StaticInvoke fallback") {
     val originalApi = BackendsApiManager.getSparkPlanExecApiInstance
-    val defaultApi = Proxy.newProxyInstance(
-      classOf[SparkPlanExecApi].getClassLoader,
-      Array(classOf[SparkPlanExecApi]),
-      new InvocationHandler {
-        override def invoke(proxy: Any, method: Method, args: Array[AnyRef]): AnyRef = {
-          method.invoke(originalApi, Option(args).getOrElse(Array.empty[AnyRef]): _*)
-        }
-      }
-    ).asInstanceOf[SparkPlanExecApi]
     val defaultHook = () => {
       val method = classOf[SparkPlanExecApi].getDeclaredMethod(
         "genSparkVersionStaticInvokeTransformer$",
         classOf[SparkPlanExecApi])
-      method.invoke(null, defaultApi).asInstanceOf[Option[ExpressionTransformer]]
+      method.invoke(null, originalApi).asInstanceOf[Option[ExpressionTransformer]]
     }
+    assert(defaultHook().isEmpty)
     val dispatcher = ExpressionConverter.getClass.getDeclaredMethods.find {
       method => method.getName == "replaceStaticInvokeWithExpressionTransformer"
     }.get
