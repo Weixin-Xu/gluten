@@ -23,7 +23,7 @@ import org.apache.gluten.extension.columnar.transition.{Convention, ConventionRe
 import org.apache.gluten.iterator.Iterators
 import org.apache.gluten.memory.arrow.alloc.ArrowBufferAllocators
 import org.apache.gluten.utils.PullOutProjectHelper
-import org.apache.gluten.vectorized.ArrowWritableColumnVector
+import org.apache.gluten.vectorized.{ArrowColumnVectors, RefCountedArrowColumnVector}
 
 import org.apache.spark.{ContextAwareIterator, SparkEnv, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -116,8 +116,8 @@ class ColumnarArrowPythonRunner(
                 reader = new ArrowStreamReader(stream, allocator)
                 root = reader.getVectorSchemaRoot()
                 schema = SparkArrowUtil.fromArrowSchema(root.getSchema())
-                vectors = ArrowWritableColumnVector
-                  .loadColumns(root.getRowCount, root.getFieldVectors)
+                vectors = ArrowColumnVectors
+                  .wrap(root.getFieldVectors)
                   .toArray[ColumnVector]
                 read()
               case SpecialLengths.TIMING_DATA =>
@@ -181,7 +181,7 @@ class ColumnarArrowPythonRunner(
                 nextBatch
                   .asInstanceOf[ColumnarBatch]
                   .column(i)
-                  .asInstanceOf[ArrowWritableColumnVector]
+                  .asInstanceOf[RefCountedArrowColumnVector]
                   .getValueVector)
             val nextRecordBatch =
               SparkVectorUtil.toArrowRecordBatch(nextBatch.numRows, cols)
@@ -370,7 +370,7 @@ case class ColumnarArrowEvalPythonExec(
                 i => outputCb.column(i))
               (0 until joinedVectors.length).foreach(
                 i => {
-                  adjustRefCnt(joinedVectors(i).asInstanceOf[ArrowWritableColumnVector], 1)
+                  adjustRefCnt(joinedVectors(i).asInstanceOf[RefCountedArrowColumnVector], 1)
                 })
               val numRows = inputCb.numRows
               numOutputBatches += 1
@@ -390,7 +390,7 @@ case class ColumnarArrowEvalPythonExec(
     }
   }
 
-  private def adjustRefCnt(vector: ArrowWritableColumnVector, to: Long): Unit = {
+  private def adjustRefCnt(vector: RefCountedArrowColumnVector, to: Long): Unit = {
     val from = vector.refCnt()
     if (from == to) {
       return

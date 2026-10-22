@@ -255,6 +255,12 @@ if(NOT TARGET google::glog)
 endif()
 
 add_subdirectory(core)
+# Expose core headers and dependency requirements to users of the shared runtime.
+# INTERFACE avoids adding the core object files to consumers.
+target_link_libraries(
+  gluten
+  PUBLIC glog::glog
+  INTERFACE gluten_core_impl)
 if(GLUTEN_PREFIX_INCLUDE_DIRS)
   target_include_directories(gluten BEFORE PUBLIC ${GLUTEN_PREFIX_INCLUDE_DIRS})
 endif()
