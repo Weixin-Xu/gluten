@@ -17,6 +17,7 @@
 package org.apache.spark.sql.execution
 
 import org.apache.gluten.execution._
+import org.apache.gluten.utils.BackendTestUtils
 
 import org.apache.spark.sql.GlutenSQLTestsTrait
 import org.apache.spark.sql.catalyst.expressions.aggregate.{AggregateExpression, Complete, Final}
@@ -31,6 +32,19 @@ import scala.reflect.ClassTag
 class GlutenLogicalPlanTagInSparkPlanSuite
   extends LogicalPlanTagInSparkPlanSuite
   with GlutenSQLTestsTrait {
+
+  // Preserve the concrete backend type, including subclasses, without requiring the other
+  // backend on the test classpath.
+  // scalastyle:off classforname
+  private lazy val resizeBatchesClass: Class[_] = {
+    val className = if (BackendTestUtils.isBoltBackendLoaded()) {
+      "org.apache.gluten.execution.BoltResizeBatchesExec"
+    } else {
+      "org.apache.gluten.execution.VeloxResizeBatchesExec"
+    }
+    Class.forName(className, false, getClass.getClassLoader)
+  }
+  // scalastyle:on classforname
 
   // Override to use Gluten-aware logical plan tag checking.
   // Gluten replaces Spark physical operators with Transformer nodes that don't match
@@ -96,9 +110,10 @@ class GlutenLogicalPlanTagInSparkPlanSuite
         assert(plan.getTagValue(SparkPlan.LOGICAL_PLAN_TAG).isEmpty)
 
       // Gluten infrastructure nodes (no corresponding logical plan)
-      case _: WholeStageTransformer | _: InputIteratorTransformer | _: ColumnarInputAdapter |
-          _: VeloxResizeBatchesExec =>
+      case _: WholeStageTransformer | _: InputIteratorTransformer | _: ColumnarInputAdapter =>
       // These are Gluten-specific wrapper nodes without logical plan links.
+      case p if resizeBatchesClass.isInstance(p) =>
+      // Batch resizing is also a wrapper with no corresponding logical plan.
 
       // Scan trees
       case _ if isGlutenScanPlanTree(plan) =>

@@ -255,6 +255,12 @@ if(NOT TARGET google::glog)
 endif()
 
 add_subdirectory(core)
+# Expose the core usage requirements without linking its object files into
+# consumers of the shared runtime. JniWrapper also includes glog headers.
+target_link_libraries(
+  gluten
+  PUBLIC glog::glog
+  INTERFACE gluten_core_impl)
 if(GLUTEN_PREFIX_INCLUDE_DIRS)
   target_include_directories(gluten BEFORE PUBLIC ${GLUTEN_PREFIX_INCLUDE_DIRS})
 endif()

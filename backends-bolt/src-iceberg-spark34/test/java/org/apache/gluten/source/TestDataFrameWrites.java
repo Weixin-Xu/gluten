@@ -30,7 +30,7 @@ import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.spark.SparkWriteOptions;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
-import org.apache.iceberg.spark.data.SparkAvroReader;
+import org.apache.iceberg.spark.data.SparkPlannedAvroReader;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.SparkException;
 import org.apache.spark.TaskContext;
@@ -226,8 +226,8 @@ public class TestDataFrameWrites extends AvroDataTest {
   }
 
   private Dataset<Row> createDataset(Iterable<Record> records, Schema schema) throws IOException {
-    // this uses the SparkAvroReader to create a DataFrame from the list of records
-    // it assumes that SparkAvroReader is correct
+    // this uses the SparkPlannedAvroReader to create a DataFrame from the list of records
+    // it assumes that SparkPlannedAvroReader is correct
     File testFile = temp.newFile();
     Assert.assertTrue("Delete should succeed", testFile.delete());
 
@@ -242,7 +242,7 @@ public class TestDataFrameWrites extends AvroDataTest {
     List<InternalRow> rows = Lists.newArrayList();
     try (AvroIterable<InternalRow> reader =
         Avro.read(Files.localInput(testFile))
-            .createReaderFunc(SparkAvroReader::new)
+            .createReaderFunc(ignored -> SparkPlannedAvroReader.create(schema))
             .project(schema)
             .build()) {
 

@@ -467,6 +467,12 @@
           <scope>test</scope>
         </dependency>
         <dependency>
+          <groupId>org.junit.jupiter</groupId>
+          <artifactId>junit-jupiter-params</artifactId>
+          <version>${junit5.version}</version>
+          <scope>test</scope>
+        </dependency>
+        <dependency>
           <groupId>org.awaitility</groupId>
           <artifactId>awaitility</artifactId>
           <version>4.2.2</version>
@@ -477,6 +483,12 @@
     <profile>
       <id>delta</id>
       <dependencies>
+        <dependency>
+          <groupId>org.apache.spark</groupId>
+          <artifactId>spark-tags_${scala.binary.version}</artifactId>
+          <type>test-jar</type>
+          <scope>test</scope>
+        </dependency>
         <dependency>
           <groupId>org.apache.gluten</groupId>
           <artifactId>gluten-delta</artifactId>

@@ -26,6 +26,7 @@ import org.apache.iceberg.shaded.org.apache.avro.generic.GenericData.Record;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.DeleteFileSet;
 import org.apache.orc.storage.serde2.io.DateWritable;
 import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
@@ -769,6 +770,16 @@ public class TestHelpers {
     Set<DeleteFile> deleteFiles = Sets.newHashSet();
 
     for (FileScanTask task : table.newScan().planFiles()) {
+      deleteFiles.addAll(task.deletes());
+    }
+
+    return deleteFiles;
+  }
+
+  public static Set<DeleteFile> deleteFiles(Table table, Snapshot snapshot) {
+    DeleteFileSet deleteFiles = DeleteFileSet.create();
+
+    for (FileScanTask task : table.newScan().useSnapshot(snapshot.snapshotId()).planFiles()) {
       deleteFiles.addAll(task.deletes());
     }
 
