@@ -940,8 +940,10 @@ JNIEXPORT jlong JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapp
   auto batch = ObjectStore::retrieve<ColumnarBatch>(firstBatchHandle);
 
   ShuffleWriterInfo shuffleWriterInfo;
-  shuffleWriterInfo.ParseFromArray(
-      (void*)env->GetByteArrayElements(shuffleWriterInfoProto, nullptr), env->GetArrayLength(shuffleWriterInfoProto));
+  {
+    auto safeArray = gluten::getByteArrayElementsSafe(env, shuffleWriterInfoProto);
+    shuffleWriterInfo.ParseFromArray(safeArray.elems(), safeArray.length());
+  }
 
   std::shared_ptr<RssClient> rssClient = nullptr;
   if (partitionPusher != nullptr) {
@@ -982,7 +984,7 @@ JNIEXPORT jlong JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapp
   JNI_METHOD_END(kInvalidObjectHandle)
 }
 
-JNIEXPORT jlong JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapper_write( // NOLINT
+JNIEXPORT void JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapper_write( // NOLINT
     JNIEnv* env,
     jobject wrapper,
     jlong shuffleWriterHandle,
@@ -1004,10 +1006,8 @@ JNIEXPORT jlong JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapp
 
   // The column batch maybe BoltColumnBatch or ArrowCStructColumnarBatch(FallbackRangeShuffleWriter)
   auto batch = ObjectStore::retrieve<ColumnarBatch>(batchHandle);
-  const auto inputBytes = batch->numBytes();
   gluten::arrowAssertOkOrThrow(shuffleWriter->split(batch, memLimit), "Native split: shuffle writer split failed");
-  return inputBytes;
-  JNI_METHOD_END(kInvalidObjectHandle)
+  JNI_METHOD_END()
 }
 
 JNIEXPORT jobject JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrapper_stop( // NOLINT
@@ -1097,8 +1097,10 @@ JNIEXPORT void JNICALL Java_org_apache_gluten_shuffle_BoltShuffleWriterJniWrappe
   }
 
   ShuffleWriterInfo shuffleWriterInfo;
-  shuffleWriterInfo.ParseFromArray(
-      (void*)env->GetByteArrayElements(shuffleWriterInfoProto, nullptr), env->GetArrayLength(shuffleWriterInfoProto));
+  {
+    auto safeArray = gluten::getByteArrayElementsSafe(env, shuffleWriterInfoProto);
+    shuffleWriterInfo.ParseFromArray(safeArray.elems(), safeArray.length());
+  }
   auto options = BoltShuffleWriterWrapper::getOptionsFromInfo(shuffleWriterInfo, rssClient);
   wholeStageIterator->addShuffleWriter(
       options, [ctx](const bytedance::bolt::shuffle::sparksql::ShuffleWriterMetrics& metrics) {
@@ -1134,8 +1136,10 @@ JNIEXPORT jlong JNICALL Java_org_apache_gluten_shuffle_BoltShuffleReaderJniWrapp
 
   ShuffleReaderInfo shuffleReaderInfo;
 
-  shuffleReaderInfo.ParseFromArray(
-      (void*)env->GetByteArrayElements(shuffleReaderInfoProto, nullptr), env->GetArrayLength(shuffleReaderInfoProto));
+  {
+    auto safeArray = gluten::getByteArrayElementsSafe(env, shuffleReaderInfoProto);
+    shuffleReaderInfo.ParseFromArray(safeArray.elems(), safeArray.length());
+  }
 
   // TODO: Add coalesce option and maximum coalesced size.
   std::shared_ptr<arrow::Schema> schema =

@@ -83,9 +83,8 @@ public class BoltShuffleWriterJniWrapper implements RuntimeAware {
    * @param columnarBatchHandle handle of Bolt Vector
    * @param memLimit memory usage limit for the split operation FIXME setting a cap to pool /
    *     allocator instead
-   * @return batch bytes.
    */
-  public native long write(
+  public native void write(
       long shuffleWriterHandle, int numRows, long columnarBatchHandle, long memLimit);
 
   /**

@@ -18,7 +18,7 @@ package org.apache.gluten.component
 
 import org.apache.gluten.backendsapi.bolt.BoltBackend
 import org.apache.gluten.config.GlutenConfig
-import org.apache.gluten.extension.{DeltaPostTransformRules, OffloadDeltaFilter, OffloadDeltaProject, OffloadDeltaScan}
+import org.apache.gluten.extension.{BoltOffloadDeltaScan, DeltaPostTransformRules, OffloadDeltaFilter, OffloadDeltaProject}
 import org.apache.gluten.extension.columnar.heuristic.HeuristicTransform
 import org.apache.gluten.extension.columnar.validator.Validators
 import org.apache.gluten.extension.injector.Injector
@@ -38,7 +38,7 @@ class BoltDeltaComponent extends Component {
     legacy.injectTransform {
       c =>
         val offload = Seq(
-          OffloadDeltaScan(enableNativeDmlRowIndexScan = true),
+          BoltOffloadDeltaScan(),
           OffloadDeltaProject(),
           OffloadDeltaFilter())
           .map(_.toStrcitRule())

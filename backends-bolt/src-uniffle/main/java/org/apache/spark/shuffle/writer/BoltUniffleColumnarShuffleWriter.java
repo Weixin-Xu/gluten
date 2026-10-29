@@ -203,10 +203,9 @@ public class BoltUniffleColumnarShuffleWriter<K, V> extends RssShuffleWriter<K, 
         long startTime = System.nanoTime();
         long columnarBatchHandle =
             ColumnarBatches.getNativeHandle(BackendsApiManager.getBackendName(), cb);
-        long bytes =
-            shuffleWriterJniWrapper.write(
-                nativeShuffleWriter, cb.numRows(), columnarBatchHandle, availableOffHeapPerTask());
-        LOG.debug("jniWrapper.write rows {}, input bytes {}", cb.numRows(), bytes);
+        shuffleWriterJniWrapper.write(
+            nativeShuffleWriter, cb.numRows(), columnarBatchHandle, availableOffHeapPerTask());
+        LOG.debug("jniWrapper.write rows {}", cb.numRows());
         // this metric replace part of uniffle shuffle write time
         columnarDep.metrics().get("shuffleWallTime").get().add(System.nanoTime() - startTime);
         columnarDep.metrics().get("numInputRows").get().add(cb.numRows());

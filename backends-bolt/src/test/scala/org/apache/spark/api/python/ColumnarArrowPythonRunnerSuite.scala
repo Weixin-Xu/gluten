@@ -24,7 +24,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.ColumnarBatch
 import org.apache.spark.task.TaskResources
 
-import org.apache.arrow.memory.RootAllocator
+import org.apache.arrow.memory.{BufferAllocator, RootAllocator}
 import org.apache.arrow.vector.{IntVector, VectorSchemaRoot}
 import org.apache.arrow.vector.ipc.ArrowStreamWriter
 import org.mockito.Mockito.{mock, when}
@@ -147,4 +147,34 @@ class ColumnarArrowPythonRunnerSuite extends AnyFunSuite {
         assert(ArrowBufferAllocators.contextInstance().getAllocatedMemory == 0)
     }
   }
+
+  test("task completion releases Python output prefetched without next") {
+    var allocator: BufferAllocator = null
+    withReader {
+      batches =>
+        allocator = ArrowBufferAllocators.contextInstance()
+        assert(batches.hasNext)
+        assert(allocator.getAllocatedMemory > 0)
+    }
+    assert(allocator.getAllocatedMemory == 0)
+  }
+
+  test("task failure releases a prefetched batch after an earlier batch was consumed") {
+    var allocator: BufferAllocator = null
+    val failure = new IllegalStateException("stop after prefetch")
+    val thrown = intercept[IllegalStateException] {
+      withReader {
+        batches =>
+          allocator = ArrowBufferAllocators.contextInstance()
+          val first = batches.next()
+          assert(values(first) == Seq(11, 12))
+          first.close()
+          assert(batches.hasNext)
+          throw failure
+      }
+    }
+    assert(thrown eq failure)
+    assert(allocator.getAllocatedMemory == 0)
+  }
+
 }

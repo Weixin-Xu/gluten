@@ -95,20 +95,18 @@ case class ColumnarRangeExec(range: LogicalRange) extends ColumnarRangeBaseExec 
               }
 
               override def next(): ColumnarBatch = {
-                val numRows = math.min(
-                  ((safePartitionEnd - current) / step).toInt.max(1),
-                  batchSize
-                )
+                val remaining = (safePartitionEnd - current) / step
+                val numRows = remaining.min(BigInt(batchSize)).max(BigInt(1)).toInt
 
                 val root = ArrowColumnVectors.allocateRoot(schema)
                 val vector = root.getVector(0).asInstanceOf[BigIntVector]
                 vector.allocateNew(numRows)
                 for (i <- 0 until numRows) {
-                  val value = current + i * step
+                  val value = current + BigInt(i) * step
                   vector.set(i, getSafeMargin(value))
                 }
                 root.setRowCount(numRows)
-                current += numRows * step
+                current += BigInt(numRows) * step
 
                 ArrowColumnVectors.toBatch(root)
               }

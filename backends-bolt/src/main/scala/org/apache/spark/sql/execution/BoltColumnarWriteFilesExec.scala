@@ -108,9 +108,9 @@ class BoltColumnarWriteFilesRDD(
       val objectMapper = new ObjectMapper()
       objectMapper.registerModule(DefaultScalaModule)
       for (i <- 0 until loadedCb.numRows() - 1) {
-        val fragments = loadedCb.column(1).getUTF8String(i + 1)
-        val metrics = objectMapper
-          .readValue(fragments.toString.getBytes("UTF-8"), classOf[BoltWriteFilesMetrics])
+        // TableWriteTraits returns the JSON fragments as VARBINARY.
+        val fragments = loadedCb.column(1).getBinary(i + 1)
+        val metrics = objectMapper.readValue(fragments, classOf[BoltWriteFilesMetrics])
         logDebug(s"Bolt write files metrics: $metrics")
 
         val fileWriteInfos = metrics.fileWriteInfos

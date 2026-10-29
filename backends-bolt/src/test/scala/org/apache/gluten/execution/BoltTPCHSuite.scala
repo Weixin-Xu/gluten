@@ -22,6 +22,8 @@ import org.apache.spark.SparkConf
 
 /** TPC-H fixture shared by Bolt's table-format suites, matching Velox's default subtype. */
 abstract class BoltTPCHSuite extends BoltWholeStageTransformerSuite {
+  override protected def needCheckFallback: Boolean = true
+
   protected val rootPath: String = getClass.getResource("/").getPath
   override protected val resourcePath: String = "/tpch-data-parquet"
   override protected val fileFormat: String = "parquet"
