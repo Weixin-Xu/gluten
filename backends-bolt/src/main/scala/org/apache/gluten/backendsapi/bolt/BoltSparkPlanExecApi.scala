@@ -63,8 +63,7 @@ import org.apache.spark.unsafe.Platform
 
 import org.apache.commons.lang3.ClassUtils
 
-import javax.ws.rs.core.UriBuilder
-
+import java.net.URI
 import java.util.{ArrayList => JArrayList, List => JList, Locale}
 
 import scala.collection.JavaConverters._
@@ -1057,10 +1056,7 @@ class BoltSparkPlanExecApi extends SparkPlanExecApi {
       case "local" =>
         path
       case "heap-over-local" =>
-        val rewritten = UriBuilder
-          .fromPath(path)
-          .scheme("jol")
-          .toString
+        val rewritten = new URI("jol", null, path, null, null).toString
         rewritten
       case other =>
         throw new IllegalStateException(s"Unsupported fs: $other")
