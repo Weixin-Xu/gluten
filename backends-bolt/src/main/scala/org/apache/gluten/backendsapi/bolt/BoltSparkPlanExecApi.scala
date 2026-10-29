@@ -63,7 +63,6 @@ import org.apache.spark.unsafe.Platform
 
 import org.apache.commons.lang3.ClassUtils
 
-import java.net.URI
 import java.util.{ArrayList => JArrayList, List => JList, Locale}
 
 import scala.collection.JavaConverters._
@@ -1056,8 +1055,9 @@ class BoltSparkPlanExecApi extends SparkPlanExecApi {
       case "local" =>
         path
       case "heap-over-local" =>
-        val rewritten = new URI("jol", null, path, null, null).toString
-        rewritten
+        // Native FileSystemWrapper strips this routing prefix without URI decoding.
+        // Preserve the filesystem path, including literal percent sequences.
+        s"jol:$path"
       case other =>
         throw new IllegalStateException(s"Unsupported fs: $other")
     }
