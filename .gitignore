@@ -54,6 +54,8 @@ scalastyle-output.xml
 # Generated C++ benchmark data
 backends-velox/generated-native-benchmark/
 backends-velox/spark-warehouse/
+backends-bolt/generated-native-benchmark/
+backends-bolt/spark-warehouse/
 # Generated C++ benchmark executables
 cpp/**/benchmarks/**/*
 !cpp/**/benchmarks/**/
@@ -92,3 +94,14 @@ metastore_db/
 
 # Claude Code local config
 .claude/
+
+# Local Bolt CI output
+bolt-ci-reports/
+bolt-native.tar.gz
+bolt-arrow-maven.tar.gz
+__pycache__/
+
+# Conan/Bolt-generated build metadata
+cpp/CMakeUserPresets.json
+cpp/bolt/version/version.h
+dev/.bolt-build-info.properties

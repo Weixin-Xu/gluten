@@ -18,6 +18,7 @@ package org.apache.iceberg.spark;
 
 import org.apache.gluten.TestConfUtil;
 import org.apache.gluten.config.GlutenConfig;
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
@@ -41,6 +42,7 @@ import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -60,6 +62,7 @@ import scala.collection.JavaConversions;
 import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 
 public abstract class SparkTestBase extends SparkTestHelperBase {
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   protected static TestHiveMetastore metastore = null;
   protected static HiveConf hiveConf = null;

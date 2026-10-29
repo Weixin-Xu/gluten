@@ -16,6 +16,10 @@
  */
 package org.apache.gluten.execution
 
-abstract class BoltWholeStageTransformerSuite extends WholeStageTransformerSuite {
+import org.apache.gluten.test.BoltPhaseOneTestSelectionSupport
+
+abstract class BoltWholeStageTransformerSuite
+  extends WholeStageTransformerSuite
+  with BoltPhaseOneTestSelectionSupport {
   disableFallbackCheck
 }

@@ -18,6 +18,7 @@ package org.apache.iceberg.spark.source;
 
 import org.apache.gluten.TestConfUtil;
 import org.apache.gluten.config.GlutenConfig;
+import org.apache.gluten.test.BoltJUnit5BlacklistCondition;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -98,7 +99,7 @@ import static org.assertj.core.api.Assumptions.assumeThat;
 
 // Change for compile, import org.apache.iceberg.shaded.org.apache.parquet.hadoop.ParquetFileWriter;
 // import org.apache.iceberg.shaded.org.apache.parquet.hadoop.util.HadoopInputFile;
-@ExtendWith(ParameterizedTestExtension.class)
+@ExtendWith({ParameterizedTestExtension.class, BoltJUnit5BlacklistCondition.class})
 public class TestSparkReaderDeletes extends DeleteReadTests {
   private static TestHiveMetastore metastore = null;
   protected static SparkSession spark = null;

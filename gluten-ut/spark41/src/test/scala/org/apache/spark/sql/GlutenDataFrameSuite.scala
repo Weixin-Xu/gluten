@@ -17,6 +17,7 @@
 package org.apache.spark.sql
 
 import org.apache.gluten.execution.ProjectExecTransformer
+import org.apache.gluten.utils.BackendTestUtils
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.execution.ColumnarShuffleExchangeExec
@@ -324,7 +325,12 @@ class GlutenDataFrameSuite extends DataFrameSuite with GlutenSQLTestsTrait {
   }
 
   testGluten("Allow leading/trailing whitespace in string before casting") {
-    withSQLConf("spark.gluten.velox.castFromVarcharAddTrimNode" -> "true") {
+    val trimConfig = if (BackendTestUtils.isBoltBackendLoaded()) {
+      "spark.gluten.bolt.castFromVarcharAddTrimNode"
+    } else {
+      "spark.gluten.velox.castFromVarcharAddTrimNode"
+    }
+    withSQLConf(trimConfig -> "true") {
       def checkResult(df: DataFrame, expectedResult: Seq[Row]): Unit = {
         checkAnswer(df, expectedResult)
         assert(

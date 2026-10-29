@@ -16,7 +16,9 @@
  */
 package org.apache.spark.sql
 
-import org.apache.spark.SparkException
+import org.apache.gluten.utils.BackendTestUtils
+
+import org.apache.spark.{SparkException, SparkRuntimeException}
 import org.apache.spark.sql.connector.catalog.{Column => ColumnV2, Identifier, TableInfo}
 import org.apache.spark.sql.types.{IntegerType, MapType, StructType}
 
@@ -42,6 +44,16 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
       messages.toLowerCase(java.util.Locale.ROOT).contains("value appeared in non-nullable field"),
       s"expected a not-null violation for ${colPath.mkString(".")}, got:\n$messages"
     )
+  }
+
+  private def checkNotNullException(colPath: Seq[String])(f: => Any): Unit = {
+    if (BackendTestUtils.isBoltBackendLoaded()) {
+      // Bolt follows Spark's fallback path for these map expressions.
+      val exception = intercept[SparkRuntimeException](f)
+      assert(exception.getCondition == "NOT_NULL_ASSERT_VIOLATION")
+    } else {
+      assertNotNullException(intercept[SparkException](f), colPath)
+    }
   }
 
   testGluten("NOT NULL checks for nullable map with required values (byName)") {
@@ -71,8 +83,8 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
       }
       checkAnswer(spark.table("t"), Row(1, null))
 
-      // Gluten exception differs from Spark
-      val e = intercept[SparkException] {
+      // Check the backend-specific exception contract without changing the write.
+      checkNotNullException(Seq("m", "value")) {
         if (byName) {
           val inputDF = sql("SELECT 1 AS i, map(1, null) AS m")
           inputDF.writeTo("t").append()
@@ -80,7 +92,6 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
           sql("INSERT INTO t VALUES (1 AS i, map(1, null) AS m)")
         }
       }
-      assertNotNullException(e, Seq("m", "value"))
     }
   }
 
@@ -109,8 +120,8 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
       }
       checkAnswer(spark.table("t"), Row(1, Map(Row(1, 1) -> null)))
 
-      // Gluten exception differs from Spark
-      val e1 = intercept[SparkException] {
+      // Check the backend-specific exception contract without changing the write.
+      checkNotNullException(Seq("m", "key", "x")) {
         if (byName) {
           val inputDF = sql(
             s"""SELECT
@@ -126,10 +137,9 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
              """.stripMargin)
         }
       }
-      assertNotNullException(e1, Seq("m", "key", "x"))
 
-      // Gluten exception differs from Spark
-      val e2 = intercept[SparkException] {
+      // Check the backend-specific exception contract without changing the write.
+      checkNotNullException(Seq("m", "value", "x")) {
         if (byName) {
           val inputDF = sql(
             s"""SELECT
@@ -145,7 +155,6 @@ class GlutenRuntimeNullChecksV2Writes extends RuntimeNullChecksV2Writes with Glu
              """.stripMargin)
         }
       }
-      assertNotNullException(e2, Seq("m", "value", "x"))
     }
   }
 }

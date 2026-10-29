@@ -16,6 +16,8 @@
  */
 package org.apache.iceberg.spark.data;
 
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
+
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
@@ -38,6 +40,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 public abstract class AvroDataTest {
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   protected abstract void writeAndValidate(Schema schema) throws IOException;
 

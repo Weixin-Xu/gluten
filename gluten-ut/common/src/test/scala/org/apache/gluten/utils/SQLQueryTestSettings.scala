@@ -24,4 +24,6 @@ trait SQLQueryTestSettings {
   def getOverwriteSQLQueryTests: Set[String]
 
   def getIgnoredSQLQueryTests: List[String] = List.empty
+
+  def getGoldenFilePath(testName: String, defaultPath: String): String = defaultPath
 }

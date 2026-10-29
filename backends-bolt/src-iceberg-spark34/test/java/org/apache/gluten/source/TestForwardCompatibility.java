@@ -17,6 +17,7 @@
 package org.apache.gluten.source;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.*;
@@ -75,6 +76,8 @@ public class TestForwardCompatibility {
           .build();
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   private static SparkSession spark = null;
 

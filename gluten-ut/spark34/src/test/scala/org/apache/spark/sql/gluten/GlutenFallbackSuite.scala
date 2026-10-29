@@ -119,13 +119,11 @@ class GlutenFallbackSuite extends GlutenSQLTestsTrait with AdaptiveSparkPlanHelp
 
       val id = runExecution("SELECT * FROM t1 FULL OUTER JOIN t2")
       val execution = glutenStore.execution(id)
-      if (BackendTestUtils.isVeloxBackendLoaded()) {
+      if (BackendTestUtils.isVeloxBackendLoaded() || BackendTestUtils.isBoltBackendLoaded()) {
         assert(execution.get.numFallbackNodes == 1)
         assert(
           execution.get.fallbackNodeToReason.head._2
             .contains("FullOuter join is not supported with BroadcastNestedLoopJoin"))
-      } else if (BackendTestUtils.isBoltBackendLoaded()) {
-        assert(execution.get.numFallbackNodes == 0)
       } else {
         assert(execution.get.numFallbackNodes == 2)
       }
@@ -226,7 +224,7 @@ class GlutenFallbackSuite extends GlutenSQLTestsTrait with AdaptiveSparkPlanHelp
             events.count(
               _.fallbackNodeToReason.values.toSet.exists(_.contains(
                 "Could not find a valid substrait mapping name for max"
-              ))) == (if (BackendTestUtils.isBoltBackendLoaded()) 2 else 3))
+              ))) == 3)
         } finally {
           spark.sparkContext.removeSparkListener(listener)
         }

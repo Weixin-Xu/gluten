@@ -33,11 +33,24 @@ class ArithmeticAnsiValidateSuite extends FunctionsValidateSuite {
       .set(SQLConf.ANSI_ENABLED.key, "true")
   }
 
+  private def assertArithmeticOverflow(f: => Any): Unit = {
+    if (isSparkVersionGE("4.0")) {
+      val exception = intercept[SparkException](f)
+      val messages = Iterator
+        .iterate[Throwable](exception)(_.getCause)
+        .takeWhile(_ != null)
+        .flatMap(e => Option(e.getMessage))
+      assert(messages.exists(_.contains("Arithmetic overflow")), exception)
+    } else {
+      intercept[ArithmeticException](f)
+    }
+  }
+
   test("add") {
     runQueryAndCompare("SELECT int_field1 + 100 FROM datatab WHERE int_field1 IS NOT NULL") {
       checkGlutenPlan[ProjectExecTransformer]
     }
-    intercept[ArithmeticException] {
+    assertArithmeticOverflow {
       sql("SELECT 2147483647 + 1").collect()
     }
   }
@@ -52,7 +65,7 @@ class ArithmeticAnsiValidateSuite extends FunctionsValidateSuite {
     runQueryAndCompare("SELECT int_field1 * 2 FROM datatab WHERE int_field1 IS NOT NULL") {
       checkGlutenPlan[ProjectExecTransformer]
     }
-    intercept[ArithmeticException] {
+    assertArithmeticOverflow {
       sql("SELECT 2147483647 * 2").collect()
     }
   }

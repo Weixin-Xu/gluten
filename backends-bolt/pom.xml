@@ -481,6 +481,18 @@
       </dependencies>
     </profile>
     <profile>
+      <id>iceberg-test</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.junit.platform</groupId>
+          <artifactId>junit-platform-launcher</artifactId>
+          <!-- Platform 1.11.4 matches Jupiter ${junit5.version} (5.11.4). -->
+          <version>1.11.4</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
       <id>delta</id>
       <dependencies>
         <dependency>

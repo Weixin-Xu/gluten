@@ -20,9 +20,17 @@ import org.apache.gluten.backendsapi.bolt.BoltBackend
 import org.apache.gluten.extension.{OffloadIcebergScan, OffloadIcebergWrite}
 import org.apache.gluten.extension.injector.Injector
 
+import org.apache.spark.util.SparkReflectionUtil
+
 class BoltIcebergComponent extends Component {
   override def name(): String = "bolt-iceberg"
   override def dependencies(): Seq[Class[_ <: Component]] = classOf[BoltBackend] :: Nil
+
+  override def isRuntimeCompatible: Boolean = {
+    SparkReflectionUtil.isClassPresent(
+      "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
+  }
+
   override def injectRules(injector: Injector): Unit = {
     OffloadIcebergScan.inject(injector)
     OffloadIcebergWrite.inject(injector)

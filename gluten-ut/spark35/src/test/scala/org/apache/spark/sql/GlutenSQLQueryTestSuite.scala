@@ -18,6 +18,7 @@ package org.apache.spark.sql
 
 import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.exception.GlutenException
+import org.apache.gluten.test.BoltTestBlacklistSupport
 import org.apache.gluten.utils.{BackendTestSettings, BackendTestUtils}
 
 import org.apache.spark.{SparkConf, SparkException, SparkThrowable, TestUtils}
@@ -62,7 +63,8 @@ class GlutenSQLQueryTestSuite
   extends QueryTest
   with SharedSparkSession
   with SQLHelper
-  with SQLQueryTestHelper {
+  with SQLQueryTestHelper
+  with BoltTestBlacklistSupport {
 
   import IntegratedUDFTestUtils._
 
@@ -73,19 +75,19 @@ class GlutenSQLQueryTestSuite
   protected val testDataPath = new File(resourcesPath, "test-data").getAbsolutePath
 
   protected val overwriteInputFilePath = new File(
-    BackendTestSettings.instance.getSQLQueryTestSettings.getResourceFilePath,
+    BackendTestSettings.getSQLQueryTestSettings.getResourceFilePath,
     "inputs").getAbsolutePath
 
   protected val overwriteGoldenFilePath = new File(
-    BackendTestSettings.instance.getSQLQueryTestSettings.getResourceFilePath,
+    BackendTestSettings.getSQLQueryTestSettings.getResourceFilePath,
     "results").getAbsolutePath
 
   private val isCHBackend = BackendTestUtils.isCHBackendLoaded()
 
   // List of supported cases to run with a certain backend, in lower case.
   private val supportedList: Set[String] =
-    BackendTestSettings.instance.getSQLQueryTestSettings.getSupportedSQLQueryTests ++
-      BackendTestSettings.instance.getSQLQueryTestSettings.getOverwriteSQLQueryTests
+    BackendTestSettings.getSQLQueryTestSettings.getSupportedSQLQueryTests ++
+      BackendTestSettings.getSQLQueryTestSettings.getOverwriteSQLQueryTests
 
   private val normalizeRegex = "#\\d+L?".r
   private val nodeNumberRegex = "[\\^*]\\(\\d+\\)".r
@@ -144,7 +146,7 @@ class GlutenSQLQueryTestSuite
     "explain-cbo.sql", // Explain is different in Gluten.
     "explain.sql" // Explain is different in Gluten.
   ) ++ otherIgnoreList ++
-    BackendTestSettings.instance.getSQLQueryTestSettings.getIgnoredSQLQueryTests
+    BackendTestSettings.getSQLQueryTestSettings.getIgnoredSQLQueryTests
 
   /**
    * This method handles exceptions occurred during query execution as they may need special care to
@@ -197,9 +199,11 @@ class GlutenSQLQueryTestSuite
 
   protected lazy val listTestCases: Seq[TestCase] = {
     val createTestCase = (file: File, parentDir: String, resultPath: String) => {
-      val resultFile = file.getAbsolutePath.replace(parentDir, resultPath) + ".out"
       val absPath = file.getAbsolutePath
       val testCaseName = absPath.stripPrefix(parentDir).stripPrefix(File.separator)
+      val resultFile = BackendTestSettings.getSQLQueryTestSettings.getGoldenFilePath(
+        testCaseName,
+        file.getAbsolutePath.replace(parentDir, resultPath) + ".out")
 
       if (
         file.getAbsolutePath.startsWith(

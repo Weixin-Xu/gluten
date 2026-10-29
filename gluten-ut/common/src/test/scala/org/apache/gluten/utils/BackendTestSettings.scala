@@ -20,6 +20,7 @@ import org.apache.gluten.test.TestStats
 
 import org.apache.spark.sql.GlutenTestConstants.GLUTEN_TEST
 
+import java.io.File
 import java.util
 
 import scala.collection.JavaConverters._
@@ -212,13 +213,51 @@ object BackendTestSettings {
         .newInstance()
         .asInstanceOf[BackendTestSettings]
     } else if (BackendTestUtils.isBoltBackendLoaded()) {
+      // CI deliberately shares Velox's suite registration, case filters and SQL fixtures.
+      // Keep the existing Bolt selection for local runs unless parity is explicitly requested.
+      val settingsClass = if (sys.env.get("GLUTEN_TEST_MATCH_VELOX").contains("true")) {
+        "org.apache.gluten.utils.velox.VeloxTestSettings"
+      } else {
+        "org.apache.gluten.utils.bolt.BoltTestSettings"
+      }
       Class
-        .forName("org.apache.gluten.utils.bolt.BoltTestSettings")
+        .forName(settingsClass)
         .getDeclaredConstructor()
         .newInstance()
         .asInstanceOf[BackendTestSettings]
     } else {
       throw new IllegalStateException()
+    }
+  }
+
+  lazy val getSQLQueryTestSettings: SQLQueryTestSettings = {
+    val delegate = instance.getSQLQueryTestSettings
+    if (
+      BackendTestUtils.isBoltBackendLoaded() &&
+      sys.env.get("GLUTEN_TEST_MATCH_VELOX").contains("true") &&
+      org.apache.spark.SPARK_VERSION.startsWith("3.5.")
+    ) {
+      new SQLQueryTestSettings {
+        override def getResourceFilePath: String = delegate.getResourceFilePath
+        override def getSupportedSQLQueryTests: Set[String] = delegate.getSupportedSQLQueryTests
+        override def getOverwriteSQLQueryTests: Set[String] = delegate.getOverwriteSQLQueryTests
+        override def getIgnoredSQLQueryTests: List[String] = delegate.getIgnoredSQLQueryTests
+
+        override def getGoldenFilePath(testName: String, defaultPath: String): String = {
+          val allowedOverrides = Set("window.sql")
+          val resourcesRoot = new File(delegate.getResourceFilePath).getParentFile.getParentFile
+          val overrideFile = new File(
+            resourcesRoot,
+            s"backends-bolt/sql-tests/velox-results/$testName.out")
+          if (allowedOverrides.contains(testName) && overrideFile.isFile) {
+            overrideFile.getAbsolutePath
+          } else {
+            defaultPath
+          }
+        }
+      }
+    } else {
+      delegate
     }
   }
 

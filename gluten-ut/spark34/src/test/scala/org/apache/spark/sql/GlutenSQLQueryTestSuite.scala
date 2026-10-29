@@ -18,6 +18,7 @@ package org.apache.spark.sql
 
 import org.apache.gluten.config.GlutenConfig
 import org.apache.gluten.exception.GlutenException
+import org.apache.gluten.test.BoltTestBlacklistSupport
 import org.apache.gluten.utils.{BackendTestSettings, BackendTestUtils}
 
 import org.apache.spark.{SparkConf, SparkException, SparkThrowable}
@@ -130,7 +131,8 @@ class GlutenSQLQueryTestSuite
   extends QueryTest
   with SharedSparkSession
   with SQLHelper
-  with SQLQueryTestHelper {
+  with SQLQueryTestHelper
+  with BoltTestBlacklistSupport {
 
   import IntegratedUDFTestUtils._
 

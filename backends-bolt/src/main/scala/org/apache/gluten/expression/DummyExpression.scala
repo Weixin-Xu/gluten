@@ -21,6 +21,7 @@ import org.apache.spark.sql.catalyst.analysis.FunctionRegistry
 import org.apache.spark.sql.catalyst.expressions.{Expression, ExpressionInfo, UnaryExpression}
 import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
 import org.apache.spark.sql.types.DataType
+import org.apache.spark.util.SparkShimVersionUtil
 
 abstract class DummyExpression(child: Expression) extends UnaryExpression with Serializable {
   private val accessor: (InternalRow, Int) => Any = InternalRow.getAccessor(dataType, nullable)
@@ -61,7 +62,15 @@ case class BoltDummyExpression(child: Expression)
 object BoltDummyExpression {
   val BOLT_DUMMY_EXPRESSION = "bolt_dummy_expression"
 
-  private val identifier = new FunctionIdentifier(BOLT_DUMMY_EXPRESSION)
+  private val identifier = {
+    val (major, minor) = SparkShimVersionUtil.sparkMajorMinorVersion()
+    if (major > 4 || (major == 4 && minor >= 2)) {
+      // Spark 4.2 stores temporary functions in the system.session namespace.
+      new FunctionIdentifier(BOLT_DUMMY_EXPRESSION, Some("session"), Some("system"))
+    } else {
+      new FunctionIdentifier(BOLT_DUMMY_EXPRESSION)
+    }
+  }
 
   def registerFunctions(registry: FunctionRegistry): Unit = {
     registry.registerFunction(

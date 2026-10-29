@@ -22,6 +22,7 @@ import org.apache.gluten.expression.BoltDummyExpression
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, GetJsonObject}
+import org.apache.spark.sql.catalyst.plans.logical.LocalRelation
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.adaptive.{AdaptiveSparkPlanHelper, AQEShuffleReadExec, ShuffleQueryStageExec}
 import org.apache.spark.sql.execution.joins.BroadcastNestedLoopJoinExec
@@ -181,7 +182,17 @@ class MiscOperatorSuite extends BoltWholeStageTransformerSuite with AdaptiveSpar
       "select l_orderkey from lineitem where l_orderkey > 2 " +
         "and l_orderkey = 1") { _ => }
     assert(df.isEmpty)
-    checkLengthAndPlan(df, 0)
+    if (isSparkVersionGE("4.0")) {
+      // Spark folds the contradictory predicates into an empty local relation.
+      val optimizedPlan = df.queryExecution.optimizedPlan
+      assert(optimizedPlan.isInstanceOf[LocalRelation])
+      assert(optimizedPlan.asInstanceOf[LocalRelation].data.isEmpty)
+      val executedPlan = stripAQEPlan(df.queryExecution.executedPlan)
+      assert(executedPlan.isInstanceOf[LocalTableScanExec])
+      assert(executedPlan.asInstanceOf[LocalTableScanExec].rows.isEmpty)
+    } else {
+      checkLengthAndPlan(df, 0)
+    }
   }
 
   test("in") {
@@ -803,7 +814,11 @@ class MiscOperatorSuite extends BoltWholeStageTransformerSuite with AdaptiveSpar
     val df = sql("SELECT 1")
     checkAnswer(df, Row(1))
     val plan = df.queryExecution.executedPlan
-    assert(plan.find(_.isInstanceOf[RDDScanExec]).isDefined)
+    if (isSparkVersionGE("4.1")) {
+      assert(plan.find(_.getClass.getSimpleName == "OneRowRelationExec").isDefined)
+    } else {
+      assert(plan.find(_.isInstanceOf[RDDScanExec]).isDefined)
+    }
     assert(plan.find(_.isInstanceOf[ProjectExecTransformer]).isDefined)
     assert(plan.find(_.isInstanceOf[RowToBoltColumnarExec]).isDefined)
   }

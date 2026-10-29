@@ -16,6 +16,7 @@
  */
 package org.apache.spark.sql
 
+import org.apache.gluten.test.{BoltPhaseOneTestSelectionSupport, BoltTestBlacklistSupport}
 import org.apache.gluten.utils.BackendTestSettings
 
 import org.apache.spark.sql.GlutenTestConstants.GLUTEN_TEST
@@ -26,7 +27,10 @@ import org.scalatest.funsuite.AnyFunSuiteLike
 
 import java.io.File
 
-trait GlutenTestsBaseTrait extends AnyFunSuiteLike {
+trait GlutenTestsBaseTrait
+  extends AnyFunSuiteLike
+  with BoltTestBlacklistSupport
+  with BoltPhaseOneTestSelectionSupport {
 
   protected val rootPath: String = getClass.getResource("/").getPath
   protected val basePath: String =

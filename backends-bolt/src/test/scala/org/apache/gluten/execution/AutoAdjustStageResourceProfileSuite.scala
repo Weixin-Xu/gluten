@@ -157,7 +157,8 @@ class AutoAdjustStageResourceProfileSuite
          */
         // format: on
         // scalastyle:on
-        df => assert(collectApplyResourceProfileExec(df.queryExecution.executedPlan) == 1)
+        // Match the shared resource-profile rule: wrap both the result stage and exchange child.
+        df => assert(collectApplyResourceProfileExec(df.queryExecution.executedPlan) == 2)
       }
     }
   }

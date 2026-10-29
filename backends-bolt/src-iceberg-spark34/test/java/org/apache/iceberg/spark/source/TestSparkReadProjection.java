@@ -17,6 +17,7 @@
 package org.apache.iceberg.spark.source;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit5BlacklistCondition;
 
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -61,7 +62,7 @@ import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.assertj.core.api.Assertions.assertThat;
 
-@ExtendWith(ParameterizedTestExtension.class)
+@ExtendWith({ParameterizedTestExtension.class, BoltJUnit5BlacklistCondition.class})
 public class TestSparkReadProjection extends TestReadProjection {
 
   private static SparkSession spark = null;

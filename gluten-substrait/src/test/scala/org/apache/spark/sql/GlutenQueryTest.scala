@@ -23,6 +23,7 @@ package org.apache.spark.sql
 import org.apache.gluten.backendsapi.BackendsApiManager
 import org.apache.gluten.execution.{GlutenPlan, TransformSupport, WholeStageTransformer}
 import org.apache.gluten.sql.shims.SparkShimLoader
+import org.apache.gluten.test.BoltTestBlacklistSupport
 
 import org.apache.spark.{SPARK_VERSION_SHORT, SparkConf}
 import org.apache.spark.sql.catalyst.expressions.Attribute
@@ -44,7 +45,10 @@ import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 import scala.reflect.runtime.universe
 
-abstract class GlutenQueryTest extends QueryTest with AdaptiveSparkPlanHelper {
+abstract class GlutenQueryTest
+  extends QueryTest
+  with AdaptiveSparkPlanHelper
+  with BoltTestBlacklistSupport {
 
   // TODO: remove this if we can suppress unused import error.
   locally {

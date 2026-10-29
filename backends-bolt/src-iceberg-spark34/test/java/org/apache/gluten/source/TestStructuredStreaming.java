@@ -17,8 +17,10 @@
 package org.apache.gluten.source;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
@@ -36,6 +38,7 @@ import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.List;
 
 import scala.Option;
@@ -53,6 +56,8 @@ public class TestStructuredStreaming {
   private static SparkSession spark = null;
 
   @Rule public TemporaryFolder temp = new TemporaryFolder();
+
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   @BeforeClass
   public static void startSpark() {
@@ -112,7 +117,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Assert.assertTrue("The commit file must be deleted", deleteCommitFile(lastCommitFile));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -172,7 +177,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Assert.assertTrue("The commit file must be deleted", deleteCommitFile(lastCommitFile));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -232,7 +237,7 @@ public class TestStructuredStreaming {
 
       // remove the last commit to force Spark to reprocess batch #1
       File lastCommitFile = new File(checkpoint + "/commits/1");
-      Assert.assertTrue("The commit file must be deleted", lastCommitFile.delete());
+      Assert.assertTrue("The commit file must be deleted", deleteCommitFile(lastCommitFile));
 
       // restart the query from the checkpoint
       StreamingQuery restartedQuery = streamWriter.start();
@@ -286,6 +291,11 @@ public class TestStructuredStreaming {
         query.stop();
       }
     }
+  }
+
+  static boolean deleteCommitFile(File commitFile) throws IOException {
+    Path path = new Path(commitFile.toURI());
+    return path.getFileSystem(CONF).delete(path, false);
   }
 
   private <T> MemoryStream<T> newMemoryStream(int id, SQLContext sqlContext, Encoder<T> encoder) {

@@ -18,7 +18,7 @@ package org.apache.spark.sql
 
 import org.apache.gluten.utils.BackendTestUtils
 
-import org.apache.spark.SparkException
+import org.apache.spark.{SparkException, SparkUpgradeException}
 import org.apache.spark.sql.catalyst.util.DateTimeUtils
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.internal.SQLConf
@@ -301,9 +301,21 @@ class GlutenDateFunctionsSuite extends DateFunctionsSuite with GlutenSQLTestsTra
       Seq("corrected", "exception").foreach(
         legacyParserPolicy =>
           withSQLConf(SQLConf.LEGACY_TIME_PARSER_POLICY.key -> legacyParserPolicy) {
-            val e = intercept[SparkException](df.select(to_date(col("s"), "yyyy-dd-aa")).collect())
-            assert(e.getCause.isInstanceOf[RuntimeException])
-            assert(e.getMessage.contains("Fail to parse"))
+            if (legacyParserPolicy == "corrected") {
+              val e =
+                intercept[SparkException](df.select(to_date(col("s"), "yyyy-dd-aa")).collect())
+              assert(e.getCause.isInstanceOf[RuntimeException])
+              assert(e.getMessage.contains("Fail to parse"))
+            } else {
+              val e =
+                intercept[SparkUpgradeException](df.select(to_date(
+                  col("s"),
+                  "yyyy-dd-aa")).collect())
+              assert(e.getCause.isInstanceOf[IllegalArgumentException])
+              assert(
+                e.getMessage.contains(
+                  "You may get a different result due to the upgrading to Spark"))
+            }
           })
     }
 

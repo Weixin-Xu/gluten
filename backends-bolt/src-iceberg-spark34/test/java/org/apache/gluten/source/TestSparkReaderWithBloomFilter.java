@@ -17,6 +17,7 @@
 package org.apache.gluten.source;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.*;
@@ -39,6 +40,7 @@ import org.apache.iceberg.util.PropertyUtil;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.SparkSession;
 import org.junit.*;
+import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -55,6 +57,7 @@ import static org.apache.iceberg.TableProperties.*;
 
 @RunWith(Parameterized.class)
 public class TestSparkReaderWithBloomFilter {
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   protected String tableName = null;
   protected Table table = null;

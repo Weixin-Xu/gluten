@@ -1,0 +1,223 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Bolt Backend UT (x86)
+
+on:
+  pull_request:
+    paths:
+      - '.github/scripts/bolt_ci.py'
+      - '.github/bolt-ut-blacklist.json'
+      - '.github/bolt-ci-patches/**'
+      - '.github/workflows/bolt_backend_x86.yml'
+      - '.github/workflows/velox_backend_x86.yml'
+      - '.github/workflows/util/**'
+      - 'pom.xml'
+      - 'backends-bolt/**'
+      - 'gluten-*/**'
+      - 'package/**'
+      - 'shims/**'
+      - 'cpp/**'
+      - 'dev/**'
+      - 'build/mvn'
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      bolt_ref:
+        description: 'Bolt commit/tag to test; empty uses the pinned Bolt candidate'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.repository }}-${{ github.head_ref || github.sha }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+env:
+  BOLT_REF: ${{ inputs.bolt_ref || 'c3548fe37ce90e3fb9ae2fb8e11d59ede5e9fb48' }}
+  CC: gcc-12
+  CXX: g++-12
+
+jobs:
+  plan:
+    if: github.event_name != 'schedule' || github.repository_owner == 'apache'
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      full: ${{ steps.plan.outputs.full }}
+      has_tests: ${{ steps.plan.outputs.has_tests }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install matrix parser
+        run: python3 -m pip install PyYAML==6.0.3
+      - name: Reuse the reference change detector
+        id: detect
+        env:
+          BOLT_CI_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 .github/scripts/bolt_ci.py detect
+      - name: Validate and derive the reference UT matrix
+        id: plan
+        env:
+          FLAGS_JSON: ${{ toJSON(steps.detect.outputs) }}
+          FULL: ${{ steps.detect.outputs.full_run }}
+        shell: bash
+        run: |
+          python3 -m unittest discover -s gluten-ut/ci -v
+          ARGS=()
+          if [[ "$FULL" = true ]]; then ARGS=(--full); fi
+          echo "full=$FULL" >> "$GITHUB_OUTPUT"
+          MATRIX=$(python3 .github/scripts/bolt_ci.py plan "${ARGS[@]}" --flags "$FLAGS_JSON")
+          echo "matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "has_tests=$(python3 -c 'import json,sys; print(str(bool(json.loads(sys.argv[1])["include"])).lower())' "$MATRIX")" >> "$GITHUB_OUTPUT"
+      - name: Upload retained and deferred coverage
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bolt-ci-scope-${{ github.sha }}
+          path: bolt-ci-reports/scope.json
+
+  native:
+    needs: plan
+    if: needs.plan.outputs.has_tests == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: bytedance/bolt
+          ref: ${{ env.BOLT_REF }}
+          path: bolt-source
+      - name: Setup JDK for the native JNI build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install basic tools and use Bolt's default dependency setup
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo env TZ=Etc/GMT DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            git gcc-12 g++-12 make cmake ninja-build wget curl python3-dev \
+            automake autoconf flex bison gperf pkg-config libnuma-dev tzdata
+          bash bolt-source/scripts/setup-dev-env.sh
+          echo "$HOME/miniconda3/bin" >> "$GITHUB_PATH"
+      - name: Build the local Bolt candidate and Gluten native backend
+        shell: bash
+        run: |
+          bash dev/ci-bolt-build.sh bolt-source 2>&1 | tee bolt-native-build.log
+          tar -czf bolt-native.tar.gz cpp/build
+          tar -czf bolt-arrow-maven.tar.gz -C "$HOME" .m2/repository/org/apache/arrow
+      - name: Upload native build and Arrow JVM artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: bolt-native-${{ github.sha }}
+          path: |
+            bolt-native.tar.gz
+            bolt-arrow-maven.tar.gz
+      - name: Upload native build evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bolt-native-evidence-${{ github.sha }}
+          path: |
+            bolt-native-build.log
+            bolt-ci-reports/native/**
+
+  test:
+    name: ${{ matrix.id }} (Ubuntu 22.04)
+    needs: [plan, native]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup the reference test's JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - name: Setup the reference test's Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Preserve the native job's initial JDK 8
+        if: matrix.job == 'cpp-test-udf-test'
+        run: echo "JAVA8_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+      - name: Setup the native job's additional JDK 17
+        if: matrix.job == 'cpp-test-udf-test'
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Make both reference JDKs available
+        if: matrix.job == 'cpp-test-udf-test'
+        run: |
+          echo "JAVA17_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+          echo "JAVA_HOME=$JAVA8_HOME" >> "$GITHUB_ENV"
+          echo "$JAVA8_HOME/bin" >> "$GITHUB_PATH"
+      - name: Download the native backend built from this candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: bolt-native-${{ github.sha }}
+      - name: Prepare native libraries and Spark resources
+        env:
+          TEST_SPARK: ${{ matrix.spark }}
+          TEST_SCALA: ${{ matrix.scala }}
+          TEST_JOB: ${{ matrix.job }}
+          RUNTIME_SETUP: ${{ matrix.runtime_setup }}
+          PYTHON_PACKAGES: ${{ matrix.python_packages }}
+        shell: bash
+        run: |
+          tar -xzf bolt-native.tar.gz
+          tar -xzf bolt-arrow-maven.tar.gz -C "$HOME"
+          sudo env TZ=Etc/GMT DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata lsof
+          python3 -m pip install PyYAML==6.0.3 setuptools==77.0.3
+          if [[ -n "$PYTHON_PACKAGES" ]]; then
+            read -ra PACKAGES <<< "$PYTHON_PACKAGES"
+            python3 -m pip install "${PACKAGES[@]}"
+          fi
+          if [[ "$RUNTIME_SETUP" = true ]]; then
+            SPARK_SELECTOR=$TEST_SPARK
+            if [[ "$TEST_SPARK" = 3.5 && "$TEST_SCALA" = 2.13 ]]; then SPARK_SELECTOR=3.5-scala2.13; fi
+            sudo -E bash .github/workflows/util/install-spark-resources.sh "$SPARK_SELECTOR" /opt/
+            if [[ "$TEST_JOB" = cpp-test-udf-test ]]; then
+              sudo -E bash .github/workflows/util/install-spark-resources.sh 4.0 /opt/
+            fi
+          fi
+      - name: Execute reference commands against Bolt
+        env:
+          TEST_CASE: ${{ matrix.id }}
+          FULL_RUN: ${{ needs.plan.outputs.full }}
+        shell: bash
+        run: |
+          ARGS=()
+          if [[ "$FULL_RUN" = true ]]; then ARGS=(--full); fi
+          python3 .github/scripts/bolt_ci.py run --case "$TEST_CASE" "${ARGS[@]}"
+      - name: Upload test reports and exact commands
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: bolt-${{ matrix.id }}-reports
+          path: |
+            bolt-ci-reports/**
+            **/surefire-reports/TEST-*.xml
+            **/target/*.log
+            **/hs_err_*.log

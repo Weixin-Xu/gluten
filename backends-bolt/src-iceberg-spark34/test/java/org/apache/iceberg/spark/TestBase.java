@@ -17,6 +17,7 @@
 package org.apache.iceberg.spark;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit5BlacklistCondition;
 
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
@@ -42,6 +43,7 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.QueryExecutionListener;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -60,6 +62,7 @@ import static org.apache.hadoop.hive.conf.HiveConf.ConfVars.METASTOREURIS;
 import static org.assertj.core.api.Assertions.assertThat;
 
 // Must add the gluten config when create spark session because add plugin config
+@ExtendWith(BoltJUnit5BlacklistCondition.class)
 public abstract class TestBase extends SparkTestHelperBase {
 
   protected static TestHiveMetastore metastore = null;

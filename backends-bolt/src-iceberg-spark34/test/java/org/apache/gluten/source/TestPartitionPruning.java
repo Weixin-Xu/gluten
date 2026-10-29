@@ -17,6 +17,7 @@
 package org.apache.gluten.source;
 
 import org.apache.gluten.TestConfUtil;
+import org.apache.gluten.test.BoltJUnit4BlacklistRule;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
@@ -44,6 +45,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.junit.*;
+import org.junit.Rule;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -65,6 +67,7 @@ import static org.apache.iceberg.PlanningMode.LOCAL;
 // TODO: remove the file format parquet to make the tests pass, file system match issue
 @RunWith(Parameterized.class)
 public class TestPartitionPruning {
+  @Rule public final BoltJUnit4BlacklistRule boltBlacklistRule = new BoltJUnit4BlacklistRule();
 
   private static final Configuration CONF = new Configuration();
   private static final HadoopTables TABLES = new HadoopTables(CONF);

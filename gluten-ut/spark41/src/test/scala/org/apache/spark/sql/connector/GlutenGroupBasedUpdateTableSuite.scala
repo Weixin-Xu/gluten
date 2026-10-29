@@ -16,7 +16,9 @@
  */
 package org.apache.spark.sql.connector
 
-import org.apache.spark.SparkException
+import org.apache.gluten.utils.BackendTestUtils
+
+import org.apache.spark.{SparkException, SparkRuntimeException}
 import org.apache.spark.sql.GlutenSQLTestsTrait
 
 class GlutenGroupBasedUpdateTableSuite
@@ -24,13 +26,22 @@ class GlutenGroupBasedUpdateTableSuite
   with GlutenSQLTestsTrait {
 
   private def assertNotNullViolation(f: => Unit): Unit = {
-    val exception = intercept[SparkException](f)
-    val messages = Iterator
-      .iterate[Throwable](exception)(_.getCause)
-      .takeWhile(_ != null)
-      .flatMap(e => Option(e.getMessage))
+    if (BackendTestUtils.isBoltBackendLoaded()) {
+      // Preserve the original Spark error condition, SQL state and field path.
+      checkError(
+        exception = intercept[SparkRuntimeException](f),
+        condition = "NOT_NULL_ASSERT_VIOLATION",
+        sqlState = "42000",
+        parameters = Map("walkedTypePath" -> "\ns\nn_i\n"))
+    } else {
+      val exception = intercept[SparkException](f)
+      val messages = Iterator
+        .iterate[Throwable](exception)(_.getCause)
+        .takeWhile(_ != null)
+        .flatMap(e => Option(e.getMessage))
 
-    assert(messages.exists(_.contains("Null value appeared in non-nullable field")))
+      assert(messages.exists(_.contains("Null value appeared in non-nullable field")))
+    }
   }
 
   testGluten("update with NOT NULL checks") {
