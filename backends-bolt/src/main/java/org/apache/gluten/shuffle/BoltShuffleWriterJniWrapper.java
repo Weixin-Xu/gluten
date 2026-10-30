@@ -22,6 +22,12 @@ import org.apache.gluten.runtime.RuntimeAware;
 import java.io.IOException;
 
 public class BoltShuffleWriterJniWrapper implements RuntimeAware {
+  public static final String UNCOMPRESSED_CODEC = "uncompressed";
+
+  // Bolt's shuffle/sparksql/Options.h calls its transport-neutral RSS
+  // writer "celeborn". The supplied pusher determines the actual shuffle service.
+  public static final String RSS_PARTITION_WRITER_TYPE = "celeborn";
+
   private final Runtime runtime;
 
   private BoltShuffleWriterJniWrapper(Runtime runtime) {

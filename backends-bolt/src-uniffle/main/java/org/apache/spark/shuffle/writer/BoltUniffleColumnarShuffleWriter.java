@@ -141,16 +141,17 @@ public class BoltUniffleColumnarShuffleWriter<K, V> extends RssShuffleWriter<K, 
         .setBufferSize(nativeBufferSize)
         .setReallocThreshold(reallocThreshold)
         .setMemLimit(availableOffHeapPerTask())
-        .setCompressionCodec(compressionCodec == null ? "uncompressed" : compressionCodec)
+        .setCompressionCodec(
+            compressionCodec == null
+                ? BoltShuffleWriterJniWrapper.UNCOMPRESSED_CODEC
+                : compressionCodec)
         .setCompressionBackend(codecBackend == null ? "none" : codecBackend)
         .setCompressionLevel(compressionLevel)
         .setCompressionThreshold(config.columnarShuffleCompressionThreshold())
         .setCompressionMode(config.columnarShuffleCompressionMode())
         .setPushBufferMaxSize(bufferSize)
         .setShuffleBatchByteSize(config.maxShuffleBatchByteSize())
-        // Bolt names its transport-neutral RSS partition writer "celeborn".
-        // The supplied pusher still sends every block through Uniffle.
-        .setWriterType("celeborn")
+        .setWriterType(BoltShuffleWriterJniWrapper.RSS_PARTITION_WRITER_TYPE)
         .setForcedWriterType(config.forceShuffleWriterType())
         .setUseV2PreallocThreshold(config.useV2PreallocSizeThreshold())
         .setRowCompressionMinCols(config.rowVectorModeCompressionMinColumns())

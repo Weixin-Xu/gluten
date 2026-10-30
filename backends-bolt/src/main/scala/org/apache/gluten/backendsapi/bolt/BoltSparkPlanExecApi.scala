@@ -47,7 +47,7 @@ import org.apache.spark.sql.catalyst.plans.physical._
 import org.apache.spark.sql.execution._
 import org.apache.spark.sql.execution.datasources.FileFormat
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
-import org.apache.spark.sql.execution.joins.{BuildSideRelation, HashedRelationBroadcastMode}
+import org.apache.spark.sql.execution.joins.BuildSideRelation
 import org.apache.spark.sql.execution.metric.SQLMetric
 import org.apache.spark.sql.execution.python.ArrowEvalPythonExec
 import org.apache.spark.sql.execution.unsafe.UnsafeColumnarBuildSideRelation
@@ -769,19 +769,6 @@ class BoltSparkPlanExecApi extends SparkPlanExecApi {
         child.output,
         serialized.flatMap(_.onHeapData().asScala).toArray,
         mode)
-    }
-  }
-
-  override def doCanonicalizeForBroadcastMode(mode: BroadcastMode): BroadcastMode = {
-    mode match {
-      case hash: HashedRelationBroadcastMode =>
-        // Node: It's different with vanilla Spark.
-        // Vanilla Spark build HashRelation at driver side, so it is build keys sensitive.
-        // But we broadcast byte array and build HashRelation at executor side,
-        // the build keys are actually meaningless for the broadcast value.
-        // This change allows us reuse broadcast exchange for different build keys with same table.
-        hash.copy(key = Seq.empty)
-      case _ => mode.canonicalized
     }
   }
 
