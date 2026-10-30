@@ -31,9 +31,10 @@ class BoltDateUnixTimestampExecutionSuite extends BoltWholeStageTransformerSuite
 
   for (
     timezone <- Seq("UTC", "-08:00", "Asia/Shanghai");
+    parserPolicy <- Seq("LEGACY", "CORRECTED", "EXCEPTION");
     function <- Seq("unix_timestamp", "to_unix_timestamp")
   ) {
-    test(s"$function executes DATE with null and ignored formats in $timezone") {
+    test(s"$function executes DATE with ignored formats in $timezone under $parserPolicy") {
       withTempPath {
         directory =>
           val schema = new StructType().add("id", IntegerType).add("d", DateType)
@@ -51,11 +52,14 @@ class BoltDateUnixTimestampExecutionSuite extends BoltWholeStageTransformerSuite
           withTempView("date_unix_timestamp_input") {
             spark.read.parquet(directory.getCanonicalPath)
               .createOrReplaceTempView("date_unix_timestamp_input")
-            withSQLConf("spark.sql.session.timeZone" -> timezone) {
+            withSQLConf(
+              "spark.sql.session.timeZone" -> timezone,
+              "spark.sql.legacy.timeParserPolicy" -> parserPolicy) {
               val query = s"""
                              |SELECT id,
                              |  $function(d, 'yyyy-MM-dd') AS valid_format,
                              |  $function(d, 'invalid-pattern') AS invalid_format,
+                             |  $function(d, 'YYYY') AS week_year_format,
                              |  $function(d, cast(null AS string)) AS null_format
                              |FROM date_unix_timestamp_input
                              |""".stripMargin
@@ -72,7 +76,7 @@ class BoltDateUnixTimestampExecutionSuite extends BoltWholeStageTransformerSuite
                         case value: ToUnixTimestamp => value
                       }
                   }
-                  assert(nativeFunctions.size == 3)
+                  assert(nativeFunctions.size == 4)
                   assert(nativeFunctions.forall(_.children.head.dataType == DateType))
               }
             }

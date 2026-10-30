@@ -24,7 +24,7 @@ import org.apache.gluten.substrait.SubstraitContext
 import org.apache.gluten.substrait.expression._
 
 import org.apache.spark.sql.catalyst.expressions._
-import org.apache.spark.sql.types.{DateType, IntegerType, LongType, TimestampType}
+import org.apache.spark.sql.types.{DateType, IntegerType, LongType, StringType, TimestampType}
 
 import java.lang.{Integer => JInteger}
 import java.util.{ArrayList => JArrayList}
@@ -126,12 +126,12 @@ case class ToUnixTimestampTransformer(
           throw new GlutenNotSupportException(
             "DATE unix timestamp requires a resolved time zone")
         }
-        // Bolt registers (Date, Varchar, Varchar) for both functions in
-        // bolt/functions/sparksql/registration/RegisterDatetime.cpp. In DateTimeFunctions.h,
-        // UnixTimestampParseWithFormatAndTimestampFunction::callNullable checks only the DATE
-        // input, including when format is null. Its shared initializer uses the provided time
-        // zone and may validate non-null formats before evaluation.
-        Seq(timeExpTransformer, formatTransformer, LiteralTransformer(timezone))
+        // Spark does not evaluate the format for DATE input. Pass a typed null to Bolt's
+        // (Date, Varchar, Varchar) overload so its initializer cannot parse an unused format.
+        Seq(
+          timeExpTransformer,
+          LiteralTransformer(Literal.create(null, StringType)),
+          LiteralTransformer(timezone))
       case _ => Seq(timeExpTransformer, formatTransformer)
     }
   }

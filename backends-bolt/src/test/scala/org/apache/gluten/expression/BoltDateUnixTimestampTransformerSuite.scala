@@ -51,11 +51,14 @@ class BoltDateUnixTimestampTransformerSuite extends AnyFunSuite {
     assert(function.getArguments(2).getValue.getLiteral.getString == "-08:00")
   }
 
-  test("DATE unix_timestamp passes non-null format and exact original timezone") {
-    val function = generated(date, Literal("yyyy-MM-dd"), unix = true)
-    assert(function.getArgumentsCount == 3)
-    assert(function.getArguments(1).getValue.getLiteral.getString == "yyyy-MM-dd")
-    assert(function.getArguments(2).getValue.getLiteral.getString == "-08:00")
+  test("DATE unix timestamp ignores non-null formats and preserves the original timezone") {
+    for (format <- Seq("yyyy-MM-dd", "YYYY"); unix <- Seq(false, true)) {
+      val function = generated(date, Literal(format), unix = unix)
+      assert(function.getArgumentsCount == 3)
+      assert(function.getArguments(1).getValue.getLiteral.hasNull)
+      assert(function.getArguments(1).getValue.getLiteral.getNull.hasString)
+      assert(function.getArguments(2).getValue.getLiteral.getString == "-08:00")
+    }
   }
 
   test("DATE unix_timestamp also preserves null format") {
